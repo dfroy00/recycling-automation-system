@@ -9,7 +9,10 @@ const app = express()
 
 // 中介層
 app.use(helmet())
-app.use(cors())
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}))
 app.use(express.json())
 
 // 健康檢查（含資料庫連線狀態）
@@ -25,5 +28,16 @@ app.get('/api/health', async (_req, res) => {
 // 路由
 app.use('/api/auth', authRouter)
 app.use('/api/sites', sitesRouter)
+
+// 404 處理
+app.use((_req, res) => {
+  res.status(404).json({ message: '找不到該端點' })
+})
+
+// 全域錯誤處理
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('未處理的錯誤:', err)
+  res.status(500).json({ message: '伺服器內部錯誤' })
+})
 
 export default app
