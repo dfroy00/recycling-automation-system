@@ -15,3 +15,7 @@ backend/data/trips/*
 backend/data/items/*
 !backend/data/trips/.gitkeep
 !backend/data/items/.gitkeep
+
+# PDF 輸出
+backend/output/pdf/*
+!backend/output/pdf/.gitkeep
