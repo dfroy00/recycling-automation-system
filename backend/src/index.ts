@@ -3,6 +3,7 @@ dotenv.config()
 
 import app from './app'
 import { startFileWatcher } from './services/file-watcher'
+import { startScheduler } from './services/scheduler.service'
 import path from 'path'
 
 const PORT = process.env.PORT || 3000
@@ -18,4 +19,7 @@ app.listen(PORT, () => {
       defaultSiteId: process.env.DEFAULT_SITE_ID || 'S001',
     })
   }
+
+  // 啟動排程服務
+  startScheduler()
 })
