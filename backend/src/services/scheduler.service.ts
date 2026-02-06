@@ -455,12 +455,124 @@ async function handleContractScan() {
   await sendEmail({ to: adminEmail, subject, html })
 }
 
+// ===== 月結與發票自動流程 + 例假日調整 (Task 5) =====
+
+// 取得最近的工作日（往前找）
+export function getWorkingDay(date: dayjs.Dayjs): dayjs.Dayjs {
+  let d = date
+  while (d.day() === 0 || d.day() === 6) {
+    d = d.subtract(1, 'day')
+  }
+  return d
+}
+
+// 調整特定日期遇例假日的情況
+export function adjustForHoliday(year: number, month: number, day: number): dayjs.Dayjs {
+  const targetDate = dayjs(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+  return getWorkingDay(targetDate)
+}
+
+// 判斷今天是否為目標執行日（考慮例假日調整）
+function isScheduledDay(targetDay: number): boolean {
+  const today = dayjs()
+  const year = today.year()
+  const month = today.month() + 1
+
+  // 如果目標日超過該月天數（如 30 號但只有 28/29 天），用該月最後一天
+  const lastDay = today.endOf('month').date()
+  const actualDay = Math.min(targetDay, lastDay)
+
+  const scheduledDate = adjustForHoliday(year, month, actualDay)
+  return today.format('YYYY-MM-DD') === scheduledDate.format('YYYY-MM-DD')
+}
+
 async function handleMonthlyBilling() {
-  // Task 5 實作
+  // 檢查今天是否為月結執行日（30 號或調整後的工作日）
+  if (!isScheduledDay(30)) {
+    await logScheduleEvent('月結流程', 'success', '今日非月結執行日，跳過')
+    return
+  }
+
+  const yearMonth = dayjs().format('YYYY-MM')
+
+  // Step 1: 產生月結明細
+  const { generateAllStatements } = await import('./monthly-statement.service')
+  const stmtResults = await generateAllStatements(yearMonth)
+  await logScheduleEvent('月結流程', 'success', `已產生 ${stmtResults.length} 筆月結明細`)
+
+  // Step 2: 產生 PDF
+  const { generateAllPdfs } = await import('./pdf-batch.service')
+  const pdfResult = await generateAllPdfs(yearMonth)
+  await logScheduleEvent('月結流程', 'success', `已產生 ${pdfResult.success}/${pdfResult.total} 份 PDF`)
+
+  // Step 3: 發送管理員預覽
+  const { sendPreviewEmail } = await import('./email.service')
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (adminEmail) {
+    const statements = await prisma.monthlyStatement.findMany({
+      where: { yearMonth },
+    })
+    const totalAmount = statements.reduce((sum, s) => sum + Number(s.totalAmount), 0)
+    const anomalyCount = statements.filter(s => (s.detailJson as any)?.anomaly).length
+
+    await sendPreviewEmail(adminEmail, yearMonth, statements.length, anomalyCount, totalAmount)
+    await logScheduleEvent('月結流程', 'success', '已發送管理員預覽 Email')
+  }
+
+  // 注意：實際發送給客戶由 handleNotificationRetry 或管理員手動觸發
+  // 預留 12 小時緩衝時間讓管理員檢視
 }
 
 async function handleInvoiceGeneration() {
-  // Task 5 實作
+  // 檢查今天是否為發票執行日（15 號或調整後的工作日）
+  if (!isScheduledDay(15)) {
+    await logScheduleEvent('發票流程', 'success', '今日非發票執行日，跳過')
+    return
+  }
+
+  // 產生上個月的發票 Excel
+  const lastMonth = dayjs().subtract(1, 'month').format('YYYY-MM')
+
+  const { generateInvoiceExcel } = await import('./invoice-excel.service')
+
+  const statements = await prisma.monthlyStatement.findMany({
+    where: { yearMonth: lastMonth },
+    include: { customer: { include: { site: true } } },
+  })
+
+  if (statements.length === 0) {
+    await logScheduleEvent('發票流程', 'success', `${lastMonth} 無月結明細，跳過`)
+    return
+  }
+
+  const invoiceData = statements.map(s => ({
+    customerId: s.customerId,
+    customerName: s.customer.customerName,
+    siteName: s.customer.site.siteName,
+    billingType: s.customer.billingType,
+    totalAmount: Number(s.totalAmount),
+    tripFee: Number((s.detailJson as any)?.tripFee || 0),
+    itemFee: Number((s.detailJson as any)?.itemFee || 0),
+  }))
+
+  const outputDir = path.join(__dirname, '../../output')
+  const filePath = await generateInvoiceExcel(lastMonth, invoiceData, outputDir)
+
+  await logScheduleEvent('發票流程', 'success', `已產生 ${lastMonth} 發票 Excel: ${path.basename(filePath)}`)
+
+  // 發送給財務人員
+  const { sendEmailWithAttachment } = await import('./email.service')
+  const financeEmail = process.env.FINANCE_EMAIL
+  if (financeEmail) {
+    await sendEmailWithAttachment({
+      to: financeEmail,
+      subject: `${lastMonth} 發票明細彙總表`,
+      html: `<p>附件為 ${lastMonth} 的發票明細彙總表，共 ${statements.length} 位客戶。</p>`,
+      attachmentPath: filePath,
+      attachmentName: path.basename(filePath),
+    })
+    await logScheduleEvent('發票流程', 'success', '已發送發票 Excel 給財務人員')
+  }
 }
 
 async function handleNotificationRetry() {
