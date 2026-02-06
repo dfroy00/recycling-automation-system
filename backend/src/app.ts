@@ -13,6 +13,7 @@ import dashboardRouter from './routes/dashboard'
 import dataRouter from './routes/data'
 import notificationsRouter from './routes/notifications'
 import scheduleRouter from './routes/schedule'
+import usersRouter from './routes/users'
 
 const app = express()
 
@@ -46,6 +47,7 @@ app.use('/api/dashboard', dashboardRouter)
 app.use('/api/data', dataRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/schedule', scheduleRouter)
+app.use('/api/users', usersRouter)
 
 // 404 處理
 app.use((_req, res) => {

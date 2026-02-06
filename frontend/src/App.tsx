@@ -14,6 +14,8 @@ import DataImportPage from './pages/DataImportPage'
 import TripQueryPage from './pages/TripQueryPage'
 import ItemQueryPage from './pages/ItemQueryPage'
 import NotificationsPage from './pages/NotificationsPage'
+import ReportsPage from './pages/ReportsPage'
+import SettingsPage from './pages/SettingsPage'
 
 function App() {
   return (
@@ -37,9 +39,9 @@ function App() {
               <Route path="data/import" element={<DataImportPage />} />
               <Route path="data/trips" element={<TripQueryPage />} />
               <Route path="data/items" element={<ItemQueryPage />} />
-              <Route path="reports" element={<div>報表管理（待實作）</div>} />
+              <Route path="reports" element={<ReportsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="settings" element={<div>系統設定（待實作）</div>} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
