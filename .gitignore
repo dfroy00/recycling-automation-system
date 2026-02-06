@@ -19,3 +19,16 @@ backend/data/items/*
 # PDF 輸出
 backend/output/pdf/*
 !backend/output/pdf/.gitkeep
+
+# Excel 輸出
+backend/output/*.xlsx
+
+# 測試相關
+.env.test
+browser-tests/
+
+# Claude Code
+.claude/
+
+# Windows 意外產生
+nul
