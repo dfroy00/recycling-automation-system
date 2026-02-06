@@ -3,6 +3,8 @@ import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize } from '../middleware/auth'
 import { generateAllStatements, generateMonthlyStatement } from '../services/monthly-statement.service'
+import { generateAllPdfs, generatePdfForStatement } from '../services/pdf-batch.service'
+import path from 'path'
 
 const router = Router()
 
@@ -69,5 +71,49 @@ router.get('/monthly', authenticate, async (req: Request, res: Response) => {
     res.status(500).json({ message: '查詢失敗', error: error.message })
   }
 })
+
+// POST /api/reports/monthly/generate-pdf - 批次產生 PDF
+router.post(
+  '/monthly/generate-pdf',
+  authenticate,
+  authorize('system_admin'),
+  async (req: Request, res: Response) => {
+    try {
+      const { yearMonth } = req.body
+      if (!yearMonth) {
+        res.status(400).json({ message: '請指定 yearMonth' })
+        return
+      }
+
+      const result = await generateAllPdfs(yearMonth)
+      res.json(result)
+    } catch (error: any) {
+      res.status(500).json({ message: 'PDF 產生失敗', error: error.message })
+    }
+  }
+)
+
+// GET /api/reports/monthly/:id/pdf - 下載單一 PDF
+router.get(
+  '/monthly/:id/pdf',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const statement = await prisma.monthlyStatement.findUnique({
+        where: { statementId: Number(req.params.id) },
+      })
+
+      if (!statement?.pdfPath) {
+        // 尚未產生，即時產生
+        const filePath = await generatePdfForStatement(Number(req.params.id))
+        res.download(filePath)
+      } else {
+        res.download(statement.pdfPath)
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: '下載失敗', error: error.message })
+    }
+  }
+)
 
 export default router
