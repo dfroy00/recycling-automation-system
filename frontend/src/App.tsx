@@ -6,6 +6,13 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './components/AppLayout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import SitesPage from './pages/SitesPage'
+import CustomersPage from './pages/CustomersPage'
+import ContractsPage from './pages/ContractsPage'
+import ItemPricesPage from './pages/ItemPricesPage'
+import DataImportPage from './pages/DataImportPage'
+import TripQueryPage from './pages/TripQueryPage'
+import ItemQueryPage from './pages/ItemQueryPage'
 
 function App() {
   return (
@@ -22,13 +29,13 @@ function App() {
               </ProtectedRoute>
             }>
               <Route index element={<DashboardPage />} />
-              <Route path="sites" element={<div>站點管理（待實作）</div>} />
-              <Route path="customers" element={<div>客戶管理（待實作）</div>} />
-              <Route path="customers/:id/contracts" element={<div>合約管理（待實作）</div>} />
-              <Route path="item-prices" element={<div>品項管理（待實作）</div>} />
-              <Route path="data/import" element={<div>手動匯入（待實作）</div>} />
-              <Route path="data/trips" element={<div>車趟查詢（待實作）</div>} />
-              <Route path="data/items" element={<div>品項查詢（待實作）</div>} />
+              <Route path="sites" element={<SitesPage />} />
+              <Route path="customers" element={<CustomersPage />} />
+              <Route path="customers/:id/contracts" element={<ContractsPage />} />
+              <Route path="item-prices" element={<ItemPricesPage />} />
+              <Route path="data/import" element={<DataImportPage />} />
+              <Route path="data/trips" element={<TripQueryPage />} />
+              <Route path="data/items" element={<ItemQueryPage />} />
               <Route path="reports" element={<div>報表管理（待實作）</div>} />
               <Route path="settings" element={<div>系統設定（待實作）</div>} />
             </Route>
