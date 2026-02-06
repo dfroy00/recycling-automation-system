@@ -4,6 +4,8 @@ import { Decimal } from '@prisma/client'
 import {
   calculateTypeA,
   calculateTypeB,
+  calculateTypeC,
+  calculateTypeD,
   type TripSummary,
   type ItemSummary,
 } from '../src/services/billing.service'
@@ -76,6 +78,55 @@ describe('計費引擎', () => {
 
     it('無車趟時總金額應為 0', () => {
       const result = calculateTypeB([], new Decimal(500))
+
+      expect(result.totalAmount.toNumber()).toBe(0)
+    })
+  })
+
+  describe('C 類客戶（合約 + 牌價混合）', () => {
+    // C 類品項：紙類和塑膠有合約價，金屬用牌價
+    const mixedItems: ItemSummary[] = [
+      { itemName: '紙類', totalWeight: new Decimal(450.5), unitPrice: new Decimal(4.5), priceType: 'contract' },
+      { itemName: '塑膠', totalWeight: new Decimal(220.3), unitPrice: new Decimal(3.0), priceType: 'contract' },
+      { itemName: '金屬', totalWeight: new Decimal(180.0), unitPrice: new Decimal(8.0), priceType: 'standard' },
+    ]
+
+    it('應正確計算混合計價（不收車趟費）', () => {
+      const result = calculateTypeC(sampleTrips, mixedItems)
+
+      // 合約品項費 = 450.5*4.5 + 220.3*3.0 = 2027.25 + 660.9 = 2688.15
+      // 牌價品項費 = 180*8 = 1440
+      // 總金額 = 2688.15 + 1440 = 4128.15
+      expect(result.totalAmount.toNumber()).toBeCloseTo(4128.15, 2)
+      expect(result.tripFee.toNumber()).toBe(0) // 不收車趟費
+      expect(result.itemDetails).toHaveLength(3)
+      expect(result.itemDetails[0].priceType).toBe('contract')
+      expect(result.itemDetails[2].priceType).toBe('standard')
+    })
+
+    it('全部都是合約品項時應只用合約價', () => {
+      const contractOnly: ItemSummary[] = [
+        { itemName: '紙類', totalWeight: new Decimal(100), unitPrice: new Decimal(4.5), priceType: 'contract' },
+      ]
+      const result = calculateTypeC(sampleTrips, contractOnly)
+
+      expect(result.totalAmount.toNumber()).toBe(450)
+      expect(result.tripFee.toNumber()).toBe(0)
+    })
+  })
+
+  describe('D 類客戶（全牌價，不收車趟費）', () => {
+    it('應正確計算牌價費用', () => {
+      const result = calculateTypeD(sampleTrips, sampleItems)
+
+      // 品項費 = 450.5*5 + 220.3*3.5 + 180*8 = 4463.55
+      expect(result.totalAmount.toNumber()).toBeCloseTo(4463.55, 2)
+      expect(result.tripFee.toNumber()).toBe(0) // 不收車趟費
+      expect(result.itemDetails.every(d => d.priceType === 'standard')).toBe(true)
+    })
+
+    it('無品項時總金額應為 0', () => {
+      const result = calculateTypeD(sampleTrips, [])
 
       expect(result.totalAmount.toNumber()).toBe(0)
     })
