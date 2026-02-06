@@ -1,0 +1,10 @@
+# .gitignore（專案根目錄）
+node_modules/
+dist/
+.env
+*.log
+uploads/
+*.pdf
+coverage/
+.DS_Store
+Thumbs.db
