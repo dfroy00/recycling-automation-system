@@ -4,6 +4,9 @@ import helmet from 'helmet'
 import { prisma } from './lib/prisma'
 import authRouter from './routes/auth'
 import sitesRouter from './routes/sites'
+import customersRouter from './routes/customers'
+import contractsRouter from './routes/contracts'
+import importRouter from './routes/import'
 
 const app = express()
 
@@ -28,6 +31,9 @@ app.get('/api/health', async (_req, res) => {
 // 路由
 app.use('/api/auth', authRouter)
 app.use('/api/sites', sitesRouter)
+app.use('/api/customers', customersRouter)
+app.use('/api', contractsRouter)
+app.use('/api/import', importRouter)
 
 // 404 處理
 app.use((_req, res) => {
