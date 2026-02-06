@@ -575,6 +575,84 @@ async function handleInvoiceGeneration() {
   }
 }
 
+// ===== 通知重試 (Task 6) =====
+
+// 取得發送失敗的通知
+export async function getFailedNotifications() {
+  return prisma.monthlyStatement.findMany({
+    where: { sendStatus: 'failed' },
+    include: { customer: true },
+  })
+}
+
 async function handleNotificationRetry() {
-  // Task 6 實作
+  const failedStatements = await getFailedNotifications()
+
+  if (failedStatements.length === 0) {
+    return // 無失敗的通知
+  }
+
+  const { sendCustomerNotification } = await import('./notification.service')
+  let retried = 0
+  let gaveUp = 0
+
+  for (const stmt of failedStatements) {
+    // 查詢該筆的重試次數
+    const retryLogs = await prisma.systemLog.findMany({
+      where: {
+        eventType: 'send',
+        eventContent: { contains: stmt.customerId },
+      },
+    })
+
+    // 連續 2 次失敗 → 不再重試，通知管理員
+    if (retryLogs.length >= 2) {
+      gaveUp++
+      continue
+    }
+
+    const result = await sendCustomerNotification({
+      customerId: stmt.customerId,
+      customerName: stmt.customer.customerName,
+      notificationMethod: stmt.customer.notificationMethod,
+      email: stmt.customer.email,
+      lineId: stmt.customer.lineId,
+      yearMonth: stmt.yearMonth,
+      totalAmount: Number(stmt.totalAmount),
+      pdfPath: stmt.pdfPath || '',
+    })
+
+    if (result.success) {
+      await prisma.monthlyStatement.update({
+        where: { statementId: stmt.statementId },
+        data: { sendStatus: 'success', sentAt: new Date() },
+      })
+      retried++
+    }
+  }
+
+  // 有放棄重試的，通知管理員人工處理
+  if (gaveUp > 0) {
+    const { sendEmail } = await import('./email.service')
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (adminEmail) {
+      const gaveUpItems = failedStatements.filter((_s, i) => {
+        // 重新判斷哪些是放棄的（retryLogs >= 2 的）
+        return i < gaveUp
+      })
+      await sendEmail({
+        to: adminEmail,
+        subject: `【通知發送】${gaveUp} 筆通知連續失敗，需人工處理`,
+        html: `
+          <h3>以下客戶的月結明細連續發送失敗，請人工處理：</h3>
+          <ul>
+            ${gaveUpItems.map(s => `<li>${s.customer.customerName} (${s.customerId}) - ${s.yearMonth}</li>`).join('')}
+          </ul>
+          <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/notifications">前往通知管理</a></p>
+        `,
+      })
+    }
+  }
+
+  await logScheduleEvent('通知重試', 'success', `重試 ${retried} 筆成功，${gaveUp} 筆放棄`)
 }
