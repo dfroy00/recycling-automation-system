@@ -3,8 +3,15 @@ node_modules/
 dist/
 .env
 *.log
-uploads/
 *.pdf
 coverage/
 .DS_Store
 Thumbs.db
+
+# 匯入檔案暫存
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/data/trips/*
+backend/data/items/*
+!backend/data/trips/.gitkeep
+!backend/data/items/.gitkeep
