@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize } from '../middleware/auth'
 import { generateAllStatements, generateMonthlyStatement } from '../services/monthly-statement.service'
 import { generateAllPdfs, generatePdfForStatement } from '../services/pdf-batch.service'
+import { generateInvoiceExcel } from '../services/invoice-excel.service'
 import path from 'path'
 
 const router = Router()
@@ -112,6 +113,44 @@ router.get(
       }
     } catch (error: any) {
       res.status(500).json({ message: '下載失敗', error: error.message })
+    }
+  }
+)
+
+// GET /api/reports/invoice - 產生並下載發票 Excel
+router.get(
+  '/invoice',
+  authenticate,
+  authorize('system_admin', 'finance'),
+  async (req: Request, res: Response) => {
+    try {
+      const { yearMonth } = req.query
+      if (!yearMonth) {
+        res.status(400).json({ message: '請指定 yearMonth' })
+        return
+      }
+
+      const statements = await prisma.monthlyStatement.findMany({
+        where: { yearMonth: String(yearMonth) },
+        include: { customer: { include: { site: true } } },
+      })
+
+      const invoiceData = statements.map(s => ({
+        customerId: s.customerId,
+        customerName: s.customer.customerName,
+        siteName: s.customer.site.siteName,
+        billingType: s.customer.billingType,
+        totalAmount: Number(s.totalAmount),
+        tripFee: Number((s.detailJson as any)?.tripFee || 0),
+        itemFee: Number((s.detailJson as any)?.itemFee || 0),
+      }))
+
+      const outputDir = path.join(__dirname, '../../output')
+      const filePath = await generateInvoiceExcel(String(yearMonth), invoiceData, outputDir)
+
+      res.download(filePath)
+    } catch (error: any) {
+      res.status(500).json({ message: '產生失敗', error: error.message })
     }
   }
 )
