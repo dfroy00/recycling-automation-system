@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   DatabaseOutlined,
   BarChartOutlined,
+  BellOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -44,6 +45,7 @@ const menuItems: MenuItem[] = [
     ],
   },
   { key: '/reports', icon: <BarChartOutlined />, label: '報表管理' },
+  { key: '/notifications', icon: <BellOutlined />, label: '通知管理', roles: ['system_admin'] },
   { key: '/settings', icon: <SettingOutlined />, label: '系統設定', roles: ['system_admin'] },
 ]
 

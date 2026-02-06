@@ -11,6 +11,7 @@ import itemPricesRouter from './routes/item-prices'
 import reportsRouter from './routes/reports'
 import dashboardRouter from './routes/dashboard'
 import dataRouter from './routes/data'
+import notificationsRouter from './routes/notifications'
 
 const app = express()
 
@@ -42,6 +43,7 @@ app.use('/api/item-prices', itemPricesRouter)
 app.use('/api/reports', reportsRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/api/data', dataRouter)
+app.use('/api/notifications', notificationsRouter)
 
 // 404 處理
 app.use((_req, res) => {
