@@ -306,8 +306,153 @@ async function handleDataIntegrityCheck() {
   }
 }
 
+// ===== 合約到期掃描 (Task 4) =====
+
+export interface ContractExpiryDetail {
+  contractPriceId: number
+  customerId: string
+  customerName: string
+  siteName: string
+  itemName: string
+  endDate: Date
+  daysLeft: number
+  urgency: '30day' | '15day' | '7day' | 'today'
+}
+
+export interface ContractExpiryResult {
+  expiring: number
+  details: ContractExpiryDetail[]
+  autoSwitched: number
+}
+
+// 掃描即將到期的合約
+export async function scanExpiringContracts(): Promise<ContractExpiryResult> {
+  const now = dayjs()
+  const thirtyDaysLater = now.add(30, 'day').toDate()
+
+  // 查詢 30 天內到期的合約
+  const contracts = await prisma.contractPrice.findMany({
+    where: {
+      endDate: {
+        gte: now.startOf('day').toDate(),
+        lte: thirtyDaysLater,
+      },
+    },
+    include: {
+      customer: {
+        include: { site: true },
+      },
+    },
+  })
+
+  const details: ContractExpiryDetail[] = []
+  let autoSwitched = 0
+
+  for (const contract of contracts) {
+    const daysLeft = dayjs(contract.endDate).diff(now, 'day')
+
+    // 判斷提醒等級
+    let urgency: ContractExpiryDetail['urgency']
+    if (daysLeft <= 0) {
+      urgency = 'today'
+    } else if (daysLeft <= 7) {
+      urgency = '7day'
+    } else if (daysLeft <= 15) {
+      urgency = '15day'
+    } else {
+      urgency = '30day'
+    }
+
+    details.push({
+      contractPriceId: contract.contractPriceId,
+      customerId: contract.customerId,
+      customerName: contract.customer.customerName,
+      siteName: contract.customer.site.siteName,
+      itemName: contract.itemName,
+      endDate: contract.endDate,
+      daysLeft,
+      urgency,
+    })
+
+    // 當日到期 → 自動切換為牌價（billingType 改為 D）
+    if (daysLeft <= 0) {
+      // 檢查該客戶是否所有合約都已到期
+      const activeContracts = await prisma.contractPrice.findMany({
+        where: {
+          customerId: contract.customerId,
+          endDate: { gt: now.toDate() },
+        },
+      })
+
+      // 如果沒有其他有效合約，將客戶改為 D 類（全牌價）
+      if (activeContracts.length === 0) {
+        await prisma.customer.update({
+          where: { customerId: contract.customerId },
+          data: { billingType: 'D' },
+        })
+        autoSwitched++
+        await logScheduleEvent(
+          '合約到期',
+          'success',
+          `客戶 ${contract.customerId} (${contract.customer.customerName}) 所有合約已到期，自動切換為 D 類（牌價計費）`
+        )
+      }
+    }
+  }
+
+  return { expiring: details.length, details, autoSwitched }
+}
+
 async function handleContractScan() {
-  // Task 4 實作
+  const result = await scanExpiringContracts()
+
+  if (result.details.length === 0) {
+    return // 無即將到期合約
+  }
+
+  // 依提醒等級分組
+  const grouped = {
+    today: result.details.filter(d => d.urgency === 'today'),
+    '7day': result.details.filter(d => d.urgency === '7day'),
+    '15day': result.details.filter(d => d.urgency === '15day'),
+    '30day': result.details.filter(d => d.urgency === '30day'),
+  }
+
+  // 發送提醒 Email 給管理員
+  const { sendEmail } = await import('./email.service')
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (!adminEmail) return
+
+  const urgencyLabels: Record<string, string> = {
+    today: '🔴 今日到期',
+    '7day': '🟠 7天內到期',
+    '15day': '🟡 15天內到期',
+    '30day': '🟢 30天內到期',
+  }
+
+  let html = `<h3>合約到期提醒 - 共 ${result.details.length} 筆</h3>`
+
+  if (result.autoSwitched > 0) {
+    html += `<p style="color:red; font-weight:bold">⚠️ 已自動切換 ${result.autoSwitched} 位客戶為牌價計費</p>`
+  }
+
+  for (const [level, items] of Object.entries(grouped)) {
+    if (items.length === 0) continue
+    html += `<h4>${urgencyLabels[level]}（${items.length} 筆）</h4>`
+    html += `<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">`
+    html += `<tr style="background:#f0f0f0"><th>客戶</th><th>站點</th><th>品項</th><th>到期日</th><th>剩餘天數</th></tr>`
+    for (const d of items) {
+      const rowColor = d.urgency === 'today' ? 'style="background:#fff0f0"' : ''
+      html += `<tr ${rowColor}><td>${d.customerName}</td><td>${d.siteName}</td><td>${d.itemName}</td><td>${dayjs(d.endDate).format('YYYY-MM-DD')}</td><td>${d.daysLeft} 天</td></tr>`
+    }
+    html += `</table><br/>`
+  }
+
+  const subject = result.details.some(d => d.urgency === 'today' || d.urgency === '7day')
+    ? `【緊急】合約到期提醒 - ${result.details.length} 筆即將到期`
+    : `【提醒】合約到期提醒 - ${result.details.length} 筆即將到期`
+
+  await sendEmail({ to: adminEmail, subject, html })
 }
 
 async function handleMonthlyBilling() {
