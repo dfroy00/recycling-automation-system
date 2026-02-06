@@ -42,4 +42,36 @@ router.post('/', authenticate, authorize('system_admin'), async (req: Request, r
   }
 })
 
+// GET /api/sites/:id - 取得單一站點
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const site = await prisma.site.findUnique({
+      where: { siteId: req.params.id },
+      include: { _count: { select: { customers: true } } },
+    })
+    if (!site) {
+      return res.status(404).json({ message: '站點不存在' })
+    }
+    res.json(site)
+  } catch (error: any) {
+    res.status(500).json({ message: '查詢失敗', error: error.message })
+  }
+})
+
+// PUT /api/sites/:id - 更新站點
+router.put('/:id', authenticate, authorize('system_admin'), async (req: Request, res: Response) => {
+  try {
+    const site = await prisma.site.update({
+      where: { siteId: req.params.id },
+      data: req.body,
+    })
+    res.json(site)
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: '站點不存在' })
+    }
+    res.status(500).json({ message: '更新失敗', error: error.message })
+  }
+})
+
 export default router

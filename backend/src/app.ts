@@ -10,6 +10,7 @@ import importRouter from './routes/import'
 import itemPricesRouter from './routes/item-prices'
 import reportsRouter from './routes/reports'
 import dashboardRouter from './routes/dashboard'
+import dataRouter from './routes/data'
 
 const app = express()
 
@@ -40,6 +41,7 @@ app.use('/api/import', importRouter)
 app.use('/api/item-prices', itemPricesRouter)
 app.use('/api/reports', reportsRouter)
 app.use('/api/dashboard', dashboardRouter)
+app.use('/api/data', dataRouter)
 
 // 404 處理
 app.use((_req, res) => {
