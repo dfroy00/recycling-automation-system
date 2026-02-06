@@ -1,6 +1,7 @@
 import cron from 'node-cron'
 import fs from 'fs'
 import path from 'path'
+import dayjs from 'dayjs'
 import { prisma } from '../lib/prisma'
 
 // 排程任務定義
@@ -175,8 +176,134 @@ async function handleFileWatch() {
   }
 }
 
+// ===== 資料完整性檢查 (Task 3) =====
+
+export interface IntegrityReport {
+  yearMonth: string
+  tripCount: number
+  itemCount: number
+  orphanTrips: number    // 有車趟但無對應品項（非 B 類客戶）
+  orphanItems: number    // 有品項但無對應車趟
+  missingCustomers: string[] // 引用了不存在的客戶
+  issues: string[]
+}
+
+// 資料完整性檢查
+export async function checkDataIntegrity(yearMonth: string): Promise<IntegrityReport> {
+  const [year, month] = yearMonth.split('-').map(Number)
+  const startDate = new Date(year, month - 1, 1)
+  const endDate = new Date(year, month, 0) // 該月最後一天
+
+  const report: IntegrityReport = {
+    yearMonth,
+    tripCount: 0,
+    itemCount: 0,
+    orphanTrips: 0,
+    orphanItems: 0,
+    missingCustomers: [],
+    issues: [],
+  }
+
+  // 統計該月車趟數
+  report.tripCount = await prisma.trip.count({
+    where: {
+      tripDate: { gte: startDate, lte: endDate },
+    },
+  })
+
+  // 統計該月品項數
+  report.itemCount = await prisma.itemCollected.count({
+    where: {
+      collectionDate: { gte: startDate, lte: endDate },
+    },
+  })
+
+  // 找出有車趟但無品項的非 B 類客戶
+  const tripsWithCustomer = await prisma.trip.findMany({
+    where: { tripDate: { gte: startDate, lte: endDate } },
+    select: { customerId: true },
+    distinct: ['customerId'],
+  })
+
+  const itemsWithCustomer = await prisma.itemCollected.findMany({
+    where: { collectionDate: { gte: startDate, lte: endDate } },
+    select: { customerId: true },
+    distinct: ['customerId'],
+  })
+
+  const tripCustomerIds = new Set(tripsWithCustomer.map(t => t.customerId))
+  const itemCustomerIds = new Set(itemsWithCustomer.map(i => i.customerId))
+
+  // 檢查非 B 類客戶的孤兒車趟
+  const nonBCustomers = await prisma.customer.findMany({
+    where: { billingType: { not: 'B' } },
+    select: { customerId: true },
+  })
+  const nonBIds = new Set(nonBCustomers.map(c => c.customerId))
+
+  for (const cId of tripCustomerIds) {
+    if (nonBIds.has(cId) && !itemCustomerIds.has(cId)) {
+      report.orphanTrips++
+      report.issues.push(`客戶 ${cId}（非B類）有車趟但無品項記錄`)
+    }
+  }
+
+  // 有品項但無車趟的客戶
+  for (const cId of itemCustomerIds) {
+    if (!tripCustomerIds.has(cId)) {
+      report.orphanItems++
+      report.issues.push(`客戶 ${cId} 有品項但無車趟記錄`)
+    }
+  }
+
+  // 檢查引用不存在的客戶
+  const allCustomers = await prisma.customer.findMany({
+    select: { customerId: true },
+  })
+  const validCustomerIds = new Set(allCustomers.map(c => c.customerId))
+
+  for (const cId of tripCustomerIds) {
+    if (!validCustomerIds.has(cId)) {
+      report.missingCustomers.push(cId)
+    }
+  }
+  for (const cId of itemCustomerIds) {
+    if (!validCustomerIds.has(cId) && !report.missingCustomers.includes(cId)) {
+      report.missingCustomers.push(cId)
+    }
+  }
+
+  return report
+}
+
 async function handleDataIntegrityCheck() {
-  // Task 3 實作
+  const yearMonth = dayjs().format('YYYY-MM')
+  const report = await checkDataIntegrity(yearMonth)
+
+  // 有問題時發送通知
+  if (report.issues.length > 0 || report.missingCustomers.length > 0) {
+    const { sendEmail } = await import('./email.service')
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (adminEmail) {
+      await sendEmail({
+        to: adminEmail,
+        subject: `【資料完整性檢查】${yearMonth} 發現 ${report.issues.length} 個問題`,
+        html: `
+          <h3>${yearMonth} 資料完整性檢查報告</h3>
+          <p>車趟數：${report.tripCount}，品項數：${report.itemCount}</p>
+          <p>孤兒車趟（非B類無品項）：${report.orphanTrips}</p>
+          <p>孤兒品項（無車趟）：${report.orphanItems}</p>
+          ${report.missingCustomers.length > 0 ? `<p style="color:red">不存在的客戶：${report.missingCustomers.join(', ')}</p>` : ''}
+          <h4>問題清單：</h4>
+          <ul>${report.issues.map(i => `<li>${i}</li>`).join('')}</ul>
+        `,
+      })
+    }
+
+    await logScheduleEvent('資料完整性', 'success', `發現 ${report.issues.length} 個問題`)
+  } else {
+    await logScheduleEvent('資料完整性', 'success', `${yearMonth} 資料正常（車趟: ${report.tripCount}, 品項: ${report.itemCount}）`)
+  }
 }
 
 async function handleContractScan() {
