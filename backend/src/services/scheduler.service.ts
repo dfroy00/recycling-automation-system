@@ -1,4 +1,6 @@
 import cron from 'node-cron'
+import fs from 'fs'
+import path from 'path'
 import { prisma } from '../lib/prisma'
 
 // 排程任務定義
@@ -94,10 +96,83 @@ export function startScheduler() {
   console.log(`[排程] 共啟動 ${tasks.filter(t => t.enabled).length} 個排程任務`)
 }
 
-// ===== 排程任務處理函式（暫時空實作，後續 Task 填充） =====
+// ===== 檔案監控 (Task 2) =====
+
+// 已處理檔案記錄（避免重複匯入）
+const processedFiles = new Set<string>()
+
+// 掃描目錄中的新檔案
+export async function checkForNewFiles(watchDir: string): Promise<string[]> {
+  if (!fs.existsSync(watchDir)) {
+    return []
+  }
+
+  const files = fs.readdirSync(watchDir)
+    .filter(f => f.endsWith('.xlsx') || f.endsWith('.xls'))
+    .filter(f => !processedFiles.has(path.join(watchDir, f)))
+
+  return files.map(f => path.join(watchDir, f))
+}
+
+// 標記檔案已處理
+export function markFileProcessed(filePath: string) {
+  processedFiles.add(filePath)
+}
 
 async function handleFileWatch() {
-  // Task 2 實作
+  const tripDir = process.env.TRIP_WATCH_DIR || './data/trips'
+  const itemDir = process.env.ITEM_WATCH_DIR || './data/items'
+  const defaultSiteId = process.env.DEFAULT_SITE_ID || 'S001'
+
+  // 掃描車趟目錄
+  const tripFiles = await checkForNewFiles(tripDir)
+  for (const filePath of tripFiles) {
+    try {
+      const { importTrips } = await import('./import.service')
+      await importTrips(filePath, defaultSiteId)
+      markFileProcessed(filePath)
+      await logScheduleEvent('檔案監控', 'success', `已匯入車趟檔案: ${path.basename(filePath)}`)
+    } catch (error: any) {
+      await logScheduleEvent('檔案監控', 'error', `車趟匯入失敗: ${path.basename(filePath)} - ${error.message}`)
+    }
+  }
+
+  // 掃描品項目錄
+  const itemFiles = await checkForNewFiles(itemDir)
+  for (const filePath of itemFiles) {
+    try {
+      const { importItems } = await import('./import.service')
+      await importItems(filePath, defaultSiteId)
+      markFileProcessed(filePath)
+      await logScheduleEvent('檔案監控', 'success', `已匯入品項檔案: ${path.basename(filePath)}`)
+    } catch (error: any) {
+      await logScheduleEvent('檔案監控', 'error', `品項匯入失敗: ${path.basename(filePath)} - ${error.message}`)
+    }
+  }
+
+  // 檢查是否連續 2 天無新檔案
+  const lastLog = await prisma.systemLog.findFirst({
+    where: { eventType: 'import' },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  if (lastLog) {
+    const daysSinceLastImport = Math.floor(
+      (Date.now() - lastLog.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+    )
+    if (daysSinceLastImport >= 2) {
+      await logScheduleEvent('檔案監控', 'error', `警告：已連續 ${daysSinceLastImport} 天無新檔案匯入`)
+      const { sendEmail } = await import('./email.service')
+      const adminEmail = process.env.ADMIN_EMAIL
+      if (adminEmail) {
+        await sendEmail({
+          to: adminEmail,
+          subject: `【警告】已連續 ${daysSinceLastImport} 天無新檔案匯入`,
+          text: `系統偵測到已連續 ${daysSinceLastImport} 天沒有新的 Excel 檔案匯入，請確認車機/ERP 匯出是否正常。`,
+        })
+      }
+    }
+  }
 }
 
 async function handleDataIntegrityCheck() {
