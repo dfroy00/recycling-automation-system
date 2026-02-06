@@ -1,0 +1,197 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================
+// 站點主檔表
+// ============================
+model Site {
+  siteId       String   @id @map("site_id") @db.VarChar(20)
+  siteName     String   @map("site_name") @db.VarChar(100)
+  manager      String?  @db.VarChar(50)
+  contactPhone String?  @map("contact_phone") @db.VarChar(20)
+  contactEmail String?  @map("contact_email") @db.VarChar(100)
+  status       String   @default("啟用") @db.VarChar(10)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  customers         Customer[]
+  trips             Trip[]
+  itemsCollected    ItemCollected[]
+  monthlyStatements MonthlyStatement[]
+  systemLogs        SystemLog[]
+  users             User[]
+
+  @@map("sites")
+}
+
+// ============================
+// 客戶主檔表
+// ============================
+model Customer {
+  customerId         String   @id @map("customer_id") @db.VarChar(20)
+  siteId             String   @map("site_id") @db.VarChar(20)
+  customerName       String   @map("customer_name") @db.VarChar(100)
+  billingType        String   @map("billing_type") @db.Char(1) // A/B/C/D
+  tripPrice          Decimal? @map("trip_price") @db.Decimal(10, 2)
+  notificationMethod String   @default("Email") @map("notification_method") @db.VarChar(10)
+  lineId             String?  @map("line_id") @db.VarChar(100)
+  email              String?  @db.VarChar(100)
+  status             String   @default("啟用") @db.VarChar(10)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  site              Site              @relation(fields: [siteId], references: [siteId])
+  contractPrices    ContractPrice[]
+  trips             Trip[]
+  itemsCollected    ItemCollected[]
+  monthlyStatements MonthlyStatement[]
+
+  @@index([siteId], name: "idx_customer_site_id")
+  @@index([billingType], name: "idx_customer_billing_type")
+  @@map("customers")
+}
+
+// ============================
+// 合約品項單價表（C 類客戶用）
+// ============================
+model ContractPrice {
+  contractPriceId Int      @id @default(autoincrement()) @map("contract_price_id")
+  customerId      String   @map("customer_id") @db.VarChar(20)
+  itemName        String   @map("item_name") @db.VarChar(100)
+  contractPrice   Decimal  @map("contract_price") @db.Decimal(10, 2)
+  startDate       DateTime @map("start_date") @db.Date
+  endDate         DateTime @map("end_date") @db.Date
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [customerId])
+
+  @@index([customerId, itemName], name: "idx_contract_customer_item")
+  @@index([endDate], name: "idx_contract_end_date")
+  @@map("contract_prices")
+}
+
+// ============================
+// 品項標準單價表（牌價）
+// ============================
+model ItemPrice {
+  itemPriceId   Int       @id @default(autoincrement()) @map("item_price_id")
+  itemName      String    @map("item_name") @db.VarChar(100)
+  standardPrice Decimal   @map("standard_price") @db.Decimal(10, 2)
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  expiryDate    DateTime? @map("expiry_date") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([itemName, effectiveDate, expiryDate], name: "idx_item_effective")
+  @@map("item_prices")
+}
+
+// ============================
+// 車趟記錄表
+// ============================
+model Trip {
+  tripId       Int      @id @default(autoincrement()) @map("trip_id")
+  siteId       String   @map("site_id") @db.VarChar(20)
+  customerId   String   @map("customer_id") @db.VarChar(20)
+  tripDate     DateTime @map("trip_date") @db.Date
+  tripTime     DateTime @map("trip_time") @db.Time()
+  driver       String   @db.VarChar(50)
+  vehiclePlate String   @map("vehicle_plate") @db.VarChar(20)
+  importedAt   DateTime @default(now()) @map("imported_at")
+  sourceFile   String?  @map("source_file") @db.VarChar(200)
+
+  site     Site     @relation(fields: [siteId], references: [siteId])
+  customer Customer @relation(fields: [customerId], references: [customerId])
+
+  @@index([customerId, tripDate], name: "idx_trip_customer_date")
+  @@index([siteId, tripDate], name: "idx_trip_site_date")
+  @@map("trips")
+}
+
+// ============================
+// 品項收取記錄表
+// ============================
+model ItemCollected {
+  collectionId   Int      @id @default(autoincrement()) @map("collection_id")
+  siteId         String   @map("site_id") @db.VarChar(20)
+  customerId     String   @map("customer_id") @db.VarChar(20)
+  collectionDate DateTime @map("collection_date") @db.Date
+  itemName       String   @map("item_name") @db.VarChar(100)
+  weightKg       Decimal  @map("weight_kg") @db.Decimal(10, 2)
+  importedAt     DateTime @default(now()) @map("imported_at")
+  sourceFile     String?  @map("source_file") @db.VarChar(200)
+
+  site     Site     @relation(fields: [siteId], references: [siteId])
+  customer Customer @relation(fields: [customerId], references: [customerId])
+
+  @@index([customerId, collectionDate], name: "idx_collected_customer_date")
+  @@index([itemName, collectionDate], name: "idx_collected_item_date")
+  @@map("items_collected")
+}
+
+// ============================
+// 月結明細表
+// ============================
+model MonthlyStatement {
+  statementId Int       @id @default(autoincrement()) @map("statement_id")
+  siteId      String    @map("site_id") @db.VarChar(20)
+  customerId  String    @map("customer_id") @db.VarChar(20)
+  yearMonth   String    @map("year_month") @db.VarChar(7) // YYYY-MM
+  totalAmount Decimal   @map("total_amount") @db.Decimal(12, 2)
+  detailJson  Json      @map("detail_json")
+  generatedAt DateTime  @default(now()) @map("generated_at")
+  sentAt      DateTime? @map("sent_at")
+  sendStatus  String    @default("pending") @map("send_status") @db.VarChar(20)
+  pdfPath     String?   @map("pdf_path") @db.VarChar(200)
+
+  site     Site     @relation(fields: [siteId], references: [siteId])
+  customer Customer @relation(fields: [customerId], references: [customerId])
+
+  @@index([yearMonth], name: "idx_statement_year_month")
+  @@index([sendStatus], name: "idx_statement_send_status")
+  @@map("monthly_statements")
+}
+
+// ============================
+// 系統日誌表
+// ============================
+model SystemLog {
+  logId        Int      @id @default(autoincrement()) @map("log_id")
+  siteId       String?  @map("site_id") @db.VarChar(20)
+  eventType    String   @map("event_type") @db.VarChar(50)
+  eventContent String   @map("event_content") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  site Site? @relation(fields: [siteId], references: [siteId])
+
+  @@index([eventType, createdAt], name: "idx_log_event_time")
+  @@map("system_logs")
+}
+
+// ============================
+// 使用者表（身份驗證需要）
+// ============================
+model User {
+  userId    Int      @id @default(autoincrement()) @map("user_id")
+  username  String   @unique @db.VarChar(50)
+  password  String   @db.VarChar(200) // bcrypt hash
+  name      String   @db.VarChar(50)
+  role      String   @db.VarChar(20) // system_admin / site_admin / finance / sales
+  siteId    String?  @map("site_id") @db.VarChar(20)
+  email     String?  @db.VarChar(100)
+  status    String   @default("啟用") @db.VarChar(10)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  site Site? @relation(fields: [siteId], references: [siteId])
+
+  @@index([role], name: "idx_user_role")
+  @@map("users")
+}
