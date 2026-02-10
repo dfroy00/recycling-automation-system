@@ -53,7 +53,8 @@
 - **同一客戶不同品項可有不同方向**（例如廢紙應付、廢棄物處理應收）
 - **車趟費**：我方向客戶收取，按次或按月計算
 - **結算方式**：月結 / 按趟多次付款（依客戶需求，與簽約/臨時類型獨立設定）
-- **開票方式**：淨額開一張（預設）/ 應收應付分開（依客戶需求）
+- **發票**：需要開立 / 不需要開立（明細一律都會產出）
+- **開票方式**：淨額開一張（預設）/ 應收應付分開（依客戶需求，僅需開票的客戶適用）
 - **稅額**：5% 營業稅
 - **發票寄送**：Email（MVP），LINE（後補）
 
@@ -169,7 +170,8 @@
 | trip_fee_type | Enum? | per_trip（按次）/ per_month（按月） |
 | trip_fee_amount | Decimal? | 車趟費金額 |
 | settlement_type | Enum | monthly（月結）/ per_trip（按趟結算） |
-| invoice_type | Enum | net（淨額開一張，預設）/ separate（應收應付分開） |
+| invoice_required | Boolean | 是否需要開立發票（明細一律產出） |
+| invoice_type | Enum? | net（淨額開一張，預設）/ separate（應收應付分開），僅 invoice_required=true 時有效 |
 | notification_method | Enum | email / line / both |
 | notification_email | String? | 通知 Email |
 | notification_line_id | String? | LINE ID（後補） |
