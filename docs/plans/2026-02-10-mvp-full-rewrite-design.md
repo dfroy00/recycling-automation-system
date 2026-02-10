@@ -12,18 +12,197 @@
 
 ### MVP 原則
 
-- 所有資料來源為手動輸入 + Excel 匯入（不接車機/ERP 等外部系統）
+- 資料來源：手動輸入 + Excel 匯入 + **Adapter 模式接入外部系統（POS/車機）**
+- 外部系統整合：透過 Adapter 抽象層，MVP 使用 Mock DB 模擬，未來無縫切換真實 API
 - 通知寄送：Email 先做，LINE 預留接口後補
 - 權限分離：不做，所有使用者同等權限
 - 審核流程：人工審核，穩定後再改自動
 - 報價簽約流程：不做（系統外處理），只管理已簽約的合約
 - 車趟排程預排：不做
 - 假日資料：系統內手動維護
-- 架構預留擴充性，方便後續接入外部系統
 
 ---
 
-## 2. 業務模型
+## 2. 系統架構
+
+### 現有系統環境
+
+公司目前有 **三套獨立系統**，彼此之間無資料串接，月底靠人工彙整：
+
+| 系統 | 主要功能 | 產出資料 |
+|------|---------|---------|
+| **POS 系統** | 收運現場作業 | 進銷貨品項、重量、單價 |
+| **車機系統** | 車輛管理 | 車趟紀錄、GPS 軌跡、派車調度 |
+| **CRM 系統** | 客戶與帳務管理 | 客戶資料、合約、月結明細（全包型） |
+
+### 整合策略
+
+本系統**取代 CRM 系統**，同時透過 **Adapter 模式**整合 POS 與車機系統：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  回收業務自動化系統（本系統）                │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │                  業務邏輯層                        │   │
+│  │  客戶管理 / 合約管理 / 計費引擎 / 月結 / 報表       │   │
+│  └────────────────────┬─────────────────────────────┘   │
+│                       │                                  │
+│  ┌────────────────────▼─────────────────────────────┐   │
+│  │              Adapter 抽象層                        │   │
+│  │                                                   │   │
+│  │  ┌─────────────────┐  ┌─────────────────────┐    │   │
+│  │  │  IPosAdapter    │  │  IVehicleAdapter     │    │   │
+│  │  │  POS 系統接口    │  │  車機系統接口         │    │   │
+│  │  └────────┬────────┘  └──────────┬──────────┘    │   │
+│  └───────────┼──────────────────────┼───────────────┘   │
+│              │                      │                    │
+│    ┌─────────▼────────┐  ┌─────────▼──────────┐        │
+│    │ MockPosAdapter   │  │ MockVehicleAdapter  │        │
+│    │ （開發用 Mock DB）│  │ （開發用 Mock DB）   │        │
+│    └──────────────────┘  └────────────────────┘        │
+└─────────────────────────────────────────────────────────┘
+                    │                      │
+     ▼ 未來切換 ▼                ▼ 未來切換 ▼
+┌──────────────────┐      ┌────────────────────┐
+│ RealPosAdapter   │      │ RealVehicleAdapter  │
+│ （真實 POS API） │      │ （真實車機 API）     │
+└──────────────────┘      └────────────────────┘
+```
+
+### Adapter 介面定義
+
+#### IPosAdapter（POS 系統接口）
+
+```typescript
+interface IPosAdapter {
+  // 讀取：從 POS 取得收運紀錄
+  getCollectionRecords(params: {
+    siteId?: number       // 站區篩選
+    customerId?: number   // 客戶篩選
+    dateFrom: Date        // 起始日期
+    dateTo: Date          // 結束日期
+  }): Promise<PosCollectionRecord[]>
+
+  // 讀取：取得指定時間後的最新紀錄（增量同步用）
+  getLatestRecords(since: Date): Promise<PosCollectionRecord[]>
+
+  // 寫入：同步客戶資料到 POS
+  syncCustomer(customer: CustomerSyncData): Promise<void>
+
+  // 寫入：同步合約品項定價到 POS
+  syncContractPrices(contractItems: ContractPriceSyncData[]): Promise<void>
+}
+```
+
+#### IVehicleAdapter（車機系統接口）
+
+```typescript
+interface IVehicleAdapter {
+  // 讀取：從車機取得車趟紀錄
+  getTripRecords(params: {
+    siteId?: number   // 站區篩選
+    dateFrom: Date    // 起始日期
+    dateTo: Date      // 結束日期
+  }): Promise<VehicleTripRecord[]>
+
+  // 讀取：取得車輛即時狀態
+  getVehicleStatus(): Promise<VehicleStatus[]>
+
+  // 寫入：同步客戶資料到車機
+  syncCustomer(customer: CustomerSyncData): Promise<void>
+
+  // 寫入：派車指令
+  dispatchTrip(dispatch: DispatchData): Promise<void>
+}
+```
+
+### Adapter 切換機制
+
+透過環境變數控制使用 Mock 或 Real 實作：
+
+```env
+# .env
+POS_ADAPTER_MODE=mock      # mock | real
+VEHICLE_ADAPTER_MODE=mock   # mock | real
+
+# Real 模式需要的連線資訊（未來使用）
+POS_API_URL=
+POS_API_KEY=
+VEHICLE_API_URL=
+VEHICLE_API_KEY=
+```
+
+```typescript
+// backend/src/adapters/index.ts — 工廠函數
+import { IPosAdapter } from './pos.adapter'
+import { IVehicleAdapter } from './vehicle.adapter'
+import { MockPosAdapter } from './mock/mock-pos.adapter'
+import { MockVehicleAdapter } from './mock/mock-vehicle.adapter'
+
+export function createPosAdapter(): IPosAdapter {
+  if (process.env.POS_ADAPTER_MODE === 'real') {
+    // 未來實作
+    throw new Error('Real POS adapter not implemented yet')
+  }
+  return new MockPosAdapter()
+}
+
+export function createVehicleAdapter(): IVehicleAdapter {
+  if (process.env.VEHICLE_ADAPTER_MODE === 'real') {
+    // 未來實作
+    throw new Error('Real Vehicle adapter not implemented yet')
+  }
+  return new MockVehicleAdapter()
+}
+```
+
+### 資料同步方向
+
+```
+                    本系統                     POS 系統
+              ┌──────────────┐          ┌──────────────┐
+              │              │ ◄─ 讀取 ─ │ 品項/重量/單價│
+              │  客戶管理    │ ─ 寫入 ►  │ 客戶清單     │
+              │  合約管理    │ ─ 寫入 ►  │ 合約品項定價  │
+              │  計費引擎    │           │              │
+              │  月結/報表   │           └──────────────┘
+              │              │
+              │              │          ┌──────────────┐
+              │              │ ◄─ 讀取 ─ │ 車趟紀錄     │
+              │              │ ◄─ 讀取 ─ │ GPS 軌跡     │
+              │              │ ─ 寫入 ►  │ 客戶清單     │
+              │              │ ─ 寫入 ►  │ 派車指令     │
+              └──────────────┘          └──────────────┘
+                                          車機系統
+```
+
+| 方向 | 來源 → 目標 | 資料內容 |
+|------|------------|---------|
+| **POS → 本系統** | 讀取 | 收運品項、重量、單價 |
+| **本系統 → POS** | 寫入 | 客戶清單、合約品項定價 |
+| **車機 → 本系統** | 讀取 | 車趟紀錄、車輛狀態 |
+| **本系統 → 車機** | 寫入 | 客戶清單、派車指令 |
+
+### 外部系統資料對應策略
+
+外部系統（POS/車機）使用「站區名稱」和「客戶名稱」（字串），本系統使用 FK（整數 ID）。同步時需要名稱對應：
+
+```
+外部系統資料                     本系統
+site_name: "北區"    ──比對──►  sites.name = "北區"  → site_id = 1
+customer_name: "大明" ──比對──►  customers.name = "大明" → customer_id = 5
+item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id = 3
+```
+
+**對應規則：**
+- 以**名稱精確比對**為主（外部系統的名稱必須與本系統一致）
+- 比對失敗時：記錄到 system_logs，標記該筆為「待人工處理」，不自動建立
+- Mock 階段：seed 假資料時確保名稱一致，不會有比對問題
+
+---
+
+## 3. 業務模型
 
 ### 核心業務
 
@@ -97,13 +276,13 @@
               │ 資料進系統    │
               └──────┬───────┘
                      │
-           ┌─────────┴─────────┐
-           ▼                   ▼
-    ┌──────────────┐   ┌──────────────┐
-    │ Excel 批次匯入│   │ 系統手動建立  │
-    └──────┬───────┘   └──────┬───────┘
-           │                   │
-           └─────────┬─────────┘
+           ┌─────────┼─────────────────┐
+           ▼         ▼                 ▼
+    ┌────────────┐ ┌────────────┐ ┌──────────────┐
+    │Excel批次匯入│ │系統手動建立 │ │ POS/車機同步  │
+    └─────┬──────┘ └─────┬──────┘ │（Adapter拉取）│
+          │              │        └──────┬───────┘
+          └──────────┬───┴───────────────┘
                      ▼
               ┌──────────────────┐
               │ 建立車趟 + 品項   │
@@ -227,6 +406,11 @@
 - **附加費用**：自由輸入名稱和固定金額，每筆各自設定應收或應付方向，支援按月或按趟頻率
 - **明細產出**：月結（整月一份）/ 按趟（每趟一份），與簽約/臨時類型獨立設定
 - **付款方式**：一次付清 / 按趟分次付款（依客戶需求）
+- **明細×付款有效組合**：
+  - 月結 + 一次付清 ✓（最常見：整月一份明細，一次匯款）
+  - 月結 + 按趟分付 ✓（月結明細一份，但付款拆趟次匯款）
+  - 按趟 + 一次付清 ✓（每趟一份明細，每份各自付清）
+  - ~~按趟 + 按趟分付~~（等同「按趟+一次付清」，系統不提供此組合）
 - **發票**：需要開立 / 不需要開立（明細一律都會產出）
 - **開票方式**：淨額開一張（預設）/ 應收應付分開（依客戶需求，僅需開票的客戶適用）
 - **稅額**：5% 營業稅
@@ -234,7 +418,7 @@
 
 ---
 
-## 3. 需求清單
+## 4. 需求清單
 
 ### 基礎資料管理
 1. 站區 CRUD
@@ -245,32 +429,39 @@
 6. 合約品項 CRUD（品項 + 單價 + 費用方向）
 
 ### 日常營運
-6. 車趟紀錄建立（手動）
-7. 車趟品項明細（簽約客戶自動帶入合約價快照，臨時客戶手動輸入）
-8. Excel 批次匯入車趟 + 品項
-9. 車趟/品項資料修正
+7. 車趟紀錄建立（手動 / POS 同步 / 車機同步）
+8. 車趟品項明細（簽約客戶自動帶入合約價快照，臨時客戶手動輸入）
+9. Excel 批次匯入車趟 + 品項
+10. 車趟/品項資料修正
 
 ### 月結與發票
-10. 每月 5 號自動產出全部月結客戶明細（草稿狀態）
-11. 人工審核流程（審核通過 / 退回修正）
-12. 每月 15 號自動寄送已審核明細（Email）
-13. 按趟結算客戶：每趟完成時獨立產出明細
-14. 遇假日（週六日 + 國定假日）提前至前一個工作日
+11. 每月 5 號自動產出全部月結客戶明細（草稿狀態）
+12. 人工審核流程（審核通過 / 退回修正）
+13. 依各客戶設定寄送日自動寄送已審核明細（Email，預設 15 號）
+14. 按趟結算客戶：每趟完成時獨立產出明細
+15. 遇假日（週六日 + 國定假日）提前至前一個工作日
 
 ### 報表
-15. 客戶月結明細 PDF
-16. 站區彙總報表 Excel
+16. 客戶結算明細 PDF
+17. 站區彙總報表 Excel
+
+### 外部系統整合
+18. Adapter 抽象層（IPosAdapter、IVehicleAdapter 介面）
+19. Mock DB 模擬資料（mock_pos_collections、mock_vehicle_trips）
+20. POS 資料同步（拉取收運紀錄、推送客戶/合約定價）
+21. 車機資料同步（拉取車趟紀錄、推送客戶資料、派車）
+22. Adapter 模式切換（環境變數控制 Mock/Real）
 
 ### 系統管理
-17. 使用者管理（不分權限）
-18. 國定假日管理
-19. 排程狀態查詢 + 手動觸發
-20. 合約到期提醒（30/15/7 天）
-21. 通知重試（寄送失敗自動重試）
+23. 使用者管理（不分權限）
+24. 國定假日管理
+25. 排程狀態查詢 + 手動觸發
+26. 合約到期提醒（30/15/7 天）
+27. 通知重試（寄送失敗自動重試）
 
 ---
 
-## 4. 資料模型
+## 5. 資料模型
 
 ### ER 關係圖
 
@@ -297,14 +488,21 @@
 └──────────────┘     └────────────────┘
 
 ┌────────────────────┐
-│ monthly_statements │
-│ 月結明細            │
+│   statements      │
+│ 結算明細(月結/按趟) │
 └────────────────────┘
 
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
 │   users      │  │  holidays    │  │  system_logs │
 │  使用者       │  │  假日主檔     │  │  系統日誌     │
 └──────────────┘  └──────────────┘  └──────────────┘
+
+--- Mock DB（外部系統模擬） ---
+
+┌─────────────────────┐  ┌─────────────────────┐
+│mock_pos_collections │  │ mock_vehicle_trips  │
+│模擬 POS 收運紀錄     │  │ 模擬車機車趟紀錄     │
+└─────────────────────┘  └─────────────────────┘
 ```
 
 ### 資料表定義
@@ -323,10 +521,11 @@
 
 #### items（品項主檔）
 
+> `id` 即為品項編號（流水號），不另設 code 欄位以避免重複。
+
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| id | Int (PK) | 自動遞增（流水號，即為品項編號） |
-| code | Int (unique) | 品項編號（流水號 1, 2, 3...） |
+| id | Int (PK) | 自動遞增，同時作為品項編號 |
 | name | String (unique) | 品項名稱（全公司統一） |
 | category | String? | 分類 |
 | unit | String | 計量單位（kg、件、袋等） |
@@ -414,6 +613,8 @@
 | trip_date | Date | 收運日期 |
 | driver | String? | 司機 |
 | vehicle_plate | String? | 車牌 |
+| source | Enum | 資料來源：**manual**（手動建立）/ **excel**（Excel 匯入）/ **pos_sync**（POS 同步）/ **vehicle_sync**（車機同步） |
+| external_id | String? | 外部系統原始 ID（同步資料追溯用，手動/Excel 為 null） |
 | notes | String? | 備註 |
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
@@ -435,15 +636,19 @@
 > 快照設計：合約可能變動，但已收運的紀錄鎖定當時的單位、價格和方向。
 > 簽約客戶 → 自動帶入合約價；臨時客戶 → 手動輸入報價。
 
-#### monthly_statements（月結明細）
+#### statements（結算明細）
+
+> 同時用於月結明細和按趟明細，以 `statement_type` 區分。
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | id | Int (PK) | 自動遞增 |
 | customer_id | Int (FK) | 客戶 |
+| statement_type | Enum | **monthly**（月結明細）/ **per_trip**（按趟明細） |
+| trip_id | Int? (FK) | 關聯車趟（僅 per_trip 類型使用，monthly 為 null） |
 | year_month | String | 結算月份（如 2026-01） |
-| total_receivable | Decimal | 應收合計（含車趟費） |
-| total_payable | Decimal | 應付合計 |
+| total_receivable | Decimal | 應收合計（含車趟費及應收附加費用） |
+| total_payable | Decimal | 應付合計（含應付附加費用） |
 | net_amount | Decimal | 淨額（正=應收，負=應付） |
 | trip_fee_total | Decimal | 車趟費合計 |
 | subtotal | Decimal | 小計（依開票方式計算） |
@@ -492,9 +697,46 @@
 | user_id | Int? (FK) | 操作使用者 |
 | created_at | DateTime | 建立時間 |
 
+### Mock DB 資料表（外部系統模擬）
+
+> 以下資料表用於 MVP 階段模擬 POS 和車機系統的資料。
+> 透過 Adapter 切換，未來接入真實系統後即可停用。
+
+#### mock_pos_collections（模擬 POS 收運紀錄）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| id | Int (PK) | 自動遞增 |
+| external_id | String (unique) | 模擬外部系統 ID（如 POS-20260105-001） |
+| site_name | String | 站區名稱（對應 POS 端的站區） |
+| customer_name | String | 客戶名稱（對應 POS 端的客戶） |
+| collection_date | Date | 收運日期 |
+| item_name | String | 品項名稱 |
+| quantity | Decimal | 數量 |
+| unit | String | 計量單位 |
+| unit_price | Decimal | 單價 |
+| imported | Boolean | 是否已匯入本系統（預設 false） |
+| created_at | DateTime | 建立時間 |
+
+#### mock_vehicle_trips（模擬車機車趟紀錄）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| id | Int (PK) | 自動遞增 |
+| external_id | String (unique) | 模擬外部系統 ID（如 VH-20260105-001） |
+| site_name | String | 站區名稱（對應車機端的站區） |
+| customer_name | String | 客戶名稱（對應車機端的客戶） |
+| trip_date | Date | 車趟日期 |
+| trip_time | String? | 出車時間（如 08:30） |
+| driver | String | 司機姓名 |
+| vehicle_plate | String | 車牌號碼 |
+| status | String | 車趟狀態（pending / in_progress / completed） |
+| imported | Boolean | 是否已匯入本系統（預設 false） |
+| created_at | DateTime | 建立時間 |
+
 ---
 
-## 5. 計費邏輯
+## 6. 計費邏輯
 
 ### 計算單一客戶月結金額
 
@@ -561,7 +803,7 @@
 
 ---
 
-## 6. 自動化排程
+## 7. 自動化排程
 
 ### 排程任務
 
@@ -606,7 +848,7 @@ draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent�
 
 ---
 
-## 7. Excel 匯入格式
+## 8. Excel 匯入格式
 
 系統提供標準範本讓行政下載填寫，之後取得實際 Excel 格式再調整解析。
 
@@ -625,7 +867,7 @@ draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent�
 
 ---
 
-## 8. 報表輸出格式
+## 9. 報表輸出格式
 
 ### 客戶月結明細 PDF
 
@@ -642,7 +884,7 @@ draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent�
 │  01/05  │廢紙  │200│kg │3.5│ 應付  │  700  │
 │  01/05  │廢塑膠│100│kg │2.0│ 應收  │  200  │
 │  01/12  │廢紙  │300│kg │3.5│ 應付  │1,050  │
-│  ...                                        │
+│  01/20  │廢塑膠│150│kg │2.0│ 應收  │  300  │
 │                                              │
 │  車趟費：5趟 × 500元 = 2,500                  │
 │                                              │
@@ -651,13 +893,15 @@ draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent�
 │  環保補貼（按月）     │ 應付  │    300         │
 │                                              │
 │  ※ 只有應收或只有應付時，不顯示淨額             │
-│  應收合計：    4,200                           │
-│  應付合計：    1,000                           │
-│  淨額：       2,500                           │
-│  稅額(5%)：     125                           │
-│  總額：       2,625                           │
+│  應收合計：    4,000                           │
+│  （品項應收 500 + 車趟費 2,500 + 處理費 1,000） │
+│  應付合計：    2,050                           │
+│  （品項應付 1,750 + 環保補貼 300）              │
+│  淨額：       1,950                           │
+│  稅額(5%)：      98                           │
+│  總額：       2,048                           │
 │                                              │
-│  → 客戶應付我方 2,625 元                       │
+│  → 客戶應付我方 2,048 元                       │
 │                                              │
 │  匯款帳戶：台北富邦 012-xxxxx                   │
 ├──────────────────────────────────────────────┤
@@ -674,11 +918,11 @@ XX站區 - 2026年1月 客戶彙總
 
 | 客戶名稱 | 類型 | 應收 | 應付 | 車趟費 | 附加費用 | 淨額 | 稅額 | 總額 |
 |---------|------|------|------|-------|---------|------|------|------|
-| 大明企業 | 簽約 | 3,200| 700 | 2,500 | +700   |2,500 | 125 |2,625 |
-| 小華工廠 | 簽約 | 8,000| 0   | 1,600 |8,000 | 400 |8,400 |
-| 王先生   | 臨時 | 500  | 0   | 500   | 500  | 25  | 525  |
-|---------|------|------|------|-------|------|------|------|
-| 合計     |     |11,700| 700 | 4,600 |11,000| 550 |11,550|
+| 大明企業 | 簽約 | 3,200| 700  | 2,500 | +700   | 5,700| 285  | 5,985|
+| 小華工廠 | 簽約 | 8,000| 0    | 1,600 | 0      | 9,600| 480  |10,080|
+| 王先生   | 臨時 | 500  | 0    | 500   | 0      | 1,000| 50   | 1,050|
+|---------|------|------|------|-------|---------|------|------|------|
+| 合計     |     |11,700| 700  | 4,600 | +700   |16,300| 815  |17,115|
 ```
 
 #### 工作表二：品項彙總
@@ -698,7 +942,7 @@ XX站區 - 2026年1月 品項彙總
 
 ---
 
-## 9. UI 佈局
+## 10. UI 佈局
 
 ### 整體佈局
 
@@ -855,7 +1099,7 @@ XX站區 - 2026年1月 品項彙總
 
 ---
 
-## 10. 修改檔案清單
+## 11. 修改檔案清單
 
 全部重寫，以下為完整檔案結構：
 
@@ -863,10 +1107,21 @@ XX站區 - 2026年1月 品項彙總
 
 | 檔案路徑 | 說明 |
 |---------|------|
-| `backend/prisma/schema.prisma` | 重寫資料模型 |
-| `backend/prisma/seed.ts` | 重寫種子資料 |
+| `backend/prisma/schema.prisma` | 重寫資料模型（含 Mock DB 資料表） |
+| `backend/prisma/seed.ts` | 重寫種子資料（含 Mock 假資料） |
 | `backend/src/index.ts` | 入口點 |
 | `backend/src/app.ts` | Express 設定 |
+| **Adapter 層** | |
+| `backend/src/adapters/index.ts` | Adapter 工廠函數（依環境變數切換 Mock/Real） |
+| `backend/src/adapters/pos.adapter.ts` | IPosAdapter 介面定義 |
+| `backend/src/adapters/vehicle.adapter.ts` | IVehicleAdapter 介面定義 |
+| `backend/src/adapters/types.ts` | Adapter 共用型別（PosCollectionRecord、VehicleTripRecord 等） |
+| `backend/src/adapters/mock/mock-pos.adapter.ts` | Mock POS 實作（讀寫 mock_pos_collections） |
+| `backend/src/adapters/mock/mock-vehicle.adapter.ts` | Mock 車機實作（讀寫 mock_vehicle_trips） |
+| `backend/src/adapters/mock/mock-data-seeder.ts` | Mock 假資料產生器 |
+| `backend/src/adapters/real/real-pos.adapter.ts` | 真實 POS API 實作（未來） |
+| `backend/src/adapters/real/real-vehicle.adapter.ts` | 真實車機 API 實作（未來） |
+| **Routes** | |
 | `backend/src/routes/auth.ts` | 認證 API |
 | `backend/src/routes/sites.ts` | 站區 CRUD |
 | `backend/src/routes/items.ts` | 品項 CRUD |
@@ -879,12 +1134,16 @@ XX站區 - 2026年1月 品項彙總
 | `backend/src/routes/schedule.ts` | 排程管理 |
 | `backend/src/routes/users.ts` | 使用者管理 |
 | `backend/src/routes/holidays.ts` | 假日管理 |
+| `backend/src/routes/sync.ts` | 外部系統同步 API（POS/車機資料拉取+推送） |
+| **Services** | |
 | `backend/src/services/billing.service.ts` | 計費引擎 |
 | `backend/src/services/statement.service.ts` | 月結明細產出 |
 | `backend/src/services/pdf-generator.ts` | PDF 產出 |
 | `backend/src/services/notification.service.ts` | Email 寄送（LINE 預留接口） |
 | `backend/src/services/scheduler.service.ts` | 排程服務 |
 | `backend/src/services/holiday.service.ts` | 假日判斷 |
+| `backend/src/services/sync.service.ts` | 外部系統同步服務（呼叫 Adapter 進行資料同步） |
+| **Middleware** | |
 | `backend/src/middleware/auth.ts` | JWT 驗證中介層 |
 
 ### 前端
@@ -944,10 +1203,19 @@ XX站區 - 2026年1月 品項彙總
 | 使用者 | /api/users/:id | GET/PATCH/DELETE | 詳情 / 更新 / 刪除 |
 | 客戶附加費用 | /api/customers/:id/fees | GET/POST | 列表 / 新增 |
 | 客戶附加費用 | /api/customers/:cid/fees/:fid | PATCH/DELETE | 更新 / 刪除 |
+| **外部系統同步** | | | |
+| 同步 | /api/sync/pos/pull | POST | 從 POS 拉取收運紀錄 |
+| 同步 | /api/sync/pos/push-customers | POST | 推送客戶資料到 POS |
+| 同步 | /api/sync/pos/push-prices | POST | 推送合約品項定價到 POS |
+| 同步 | /api/sync/vehicle/pull | POST | 從車機拉取車趟紀錄 |
+| 同步 | /api/sync/vehicle/push-customers | POST | 推送客戶資料到車機 |
+| 同步 | /api/sync/vehicle/dispatch | POST | 發送派車指令到車機 |
+| 同步 | /api/sync/vehicle/status | GET | 取得車輛即時狀態 |
+| 同步 | /api/sync/status | GET | 查看各 Adapter 的連線模式和狀態 |
 
 ---
 
-## 11. 驗收標準
+## 12. 驗收標準
 
 ### 基礎資料
 - [ ] 站區 CRUD 正常運作
@@ -967,15 +1235,17 @@ XX站區 - 2026年1月 品項彙總
 - [ ] 簽約客戶建立車趟品項時，自動帶入合約價格和方向快照
 - [ ] 臨時客戶建立車趟品項時，可手動輸入報價和方向
 - [ ] Excel 批次匯入車趟 + 品項正常運作
+- [ ] 車趟紀錄正確記錄資料來源（manual / excel / pos_sync / vehicle_sync）
 
 ### 月結流程
 - [ ] 計費引擎正確計算應收/應付/車趟費/附加費用/淨額/小計/稅額(5%)/總額
 - [ ] 開票方式支援淨額一張和應收應付分開兩種模式
 - [ ] 月結明細自動產出（5 號，遇假日提前至前一工作日）
 - [ ] 審核流程正常（草稿→審核通過/退回→重新提交）
-- [ ] 已審核明細自動寄送 Email（15 號，遇假日提前）
+- [ ] 已審核明細依各客戶寄送日自動寄送 Email（預設 15 號，遇假日提前）
 - [ ] 按趟明細客戶可獨立產出單趟明細
 - [ ] 月結明細 + 按趟分次付款的客戶，明細整月一份但付款拆趟次
+- [ ] 按趟明細客戶不允許設定「按趟分次付款」（等同一次付清，UI 鎖定）
 
 ### 報表
 - [ ] 客戶月結明細 PDF 正確產出（只有應收或應付時不顯示淨額）
@@ -989,17 +1259,29 @@ XX站區 - 2026年1月 品項彙總
 - [ ] 通知重試（寄送失敗自動重試）
 - [ ] 排程可查看狀態和手動觸發
 
+### 外部系統整合（Adapter）
+- [ ] IPosAdapter 介面定義完整（讀取收運紀錄、同步客戶、同步合約定價）
+- [ ] IVehicleAdapter 介面定義完整（讀取車趟紀錄、車輛狀態、同步客戶、派車）
+- [ ] MockPosAdapter 正常讀寫 mock_pos_collections 資料表
+- [ ] MockVehicleAdapter 正常讀寫 mock_vehicle_trips 資料表
+- [ ] Mock 假資料產生器可批量產生測試資料
+- [ ] 環境變數切換 Mock/Real 模式正常運作
+- [ ] 同步 API 路由正常運作（pull/push）
+- [ ] Adapter 狀態查詢 API 正確顯示當前模式
+
 ---
 
-## 12. MVP 不做清單（未來擴充）
+## 13. MVP 不做清單（未來擴充）
 
-| 項目 | 預計時機 |
-|------|---------|
-| 權限分離（總部/站區） | 穩定運作後 |
-| LINE 通知 | 申請 Bot 後 |
-| 車機系統接入 | 確認 API 規格後 |
-| ERP 接入 | 確認 API 規格後 |
-| 報價審核流程 | 需求明確後 |
-| 車趟排程預排 | 需求明確後 |
-| 政府假日 API 自動更新 | 找到穩定資料源後 |
-| 月結全自動（跳過審核） | 計算正確性確認後 |
+| 項目 | 預計時機 | 備註 |
+|------|---------|------|
+| 權限分離（總部/站區） | 穩定運作後 | |
+| LINE 通知 | 申請 Bot 後 | notification.service 已預留接口 |
+| **POS 真實 API 接入** | 確認 POS API 規格後 | 實作 RealPosAdapter，環境變數切換即可 |
+| **車機真實 API 接入** | 確認車機 API 規格後 | 實作 RealVehicleAdapter，環境變數切換即可 |
+| ERP 接入 | 確認 API 規格後 | 可新增 IErpAdapter |
+| 報價審核流程 | 需求明確後 | |
+| 車趟排程預排 | 需求明確後 | |
+| 政府假日 API 自動更新 | 找到穩定資料源後 | |
+| 月結全自動（跳過審核） | 計算正確性確認後 | |
+| 自動化資料同步排程 | Adapter 穩定後 | 定時自動拉取 POS/車機資料 |
