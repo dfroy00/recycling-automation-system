@@ -1,0 +1,31 @@
+# 生產環境 Docker Compose
+# 使用方式: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+version: "3.9"
+
+services:
+  db:
+    restart: always
+    ports: []  # 生產環境不暴露資料庫端口
+
+  backend:
+    build:
+      target: production
+    restart: always
+    environment:
+      NODE_ENV: production
+      ENABLE_SCHEDULER: "true"
+    ports:
+      - "3000:3000"
+    volumes: []  # 生產環境不掛載本地檔案
+    command: node dist/index.js
+
+  frontend:
+    build:
+      target: production
+    restart: always
+    ports:
+      - "80:80"
+    volumes: []
+    command: []  # 使用 Dockerfile 預設的 nginx
+    depends_on:
+      - backend

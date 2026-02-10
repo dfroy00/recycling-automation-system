@@ -1,0 +1,88 @@
+# 開發環境 Docker Compose
+# 使用方式: docker compose up -d
+version: "3.9"
+
+services:
+  # PostgreSQL 16 資料庫
+  db:
+    image: postgres:16-alpine
+    container_name: recycle-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-recycle_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-recycle_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Express.js 後端
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: recycle-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@db:5432/${POSTGRES_DB:-recycle_db}
+      JWT_SECRET: ${JWT_SECRET:-recycling-system-jwt-secret-2026}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      PORT: 3000
+      CORS_ORIGIN: http://localhost:5173
+      NODE_ENV: development
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@example.com}
+      # LINE
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      # 排程
+      ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-false}
+      # 前端 URL
+      FRONTEND_URL: http://localhost:5173
+      # 管理員通知
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      FINANCE_EMAIL: ${FINANCE_EMAIL:-finance@example.com}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+    command: npx tsx watch src/index.ts
+
+  # React + Vite 前端
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: recycle-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: /api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+    command: npx vite --host 0.0.0.0
+
+volumes:
+  pgdata:
+    driver: local
