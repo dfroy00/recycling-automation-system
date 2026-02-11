@@ -361,12 +361,16 @@ model Statement {
   sentMethod            String?   @map("sent_method") /// email / line
   sendRetryCount        Int       @default(0) @map("send_retry_count") /// 寄送重試次數（最大 3）
   sendError             String?   @map("send_error") /// 最後一次寄送失敗原因
+  voidedAt              DateTime? @map("voided_at") /// 作廢時間
+  voidedBy              Int?      @map("voided_by") /// 作廢操作人
+  voidReason            String?   @map("void_reason") /// 作廢原因（作廢時必填）
   createdAt             DateTime  @default(now()) @map("created_at") /// 建立時間
   updatedAt             DateTime  @updatedAt @map("updated_at") /// 更新時間
 
   customer Customer @relation(fields: [customerId], references: [id])
   trip     Trip?    @relation("TripStatement", fields: [tripId], references: [id])
   reviewer User?    @relation(fields: [reviewedBy], references: [id])
+  voidedByUser User? @relation("VoidedByUser", fields: [voidedBy], references: [id])
 
   @@map("statements")
 }
@@ -1636,6 +1640,7 @@ async function generateCustomerStatement(customerId: number, yearMonth: string):
 **防重複機制：**
 - 該客戶該月已有 draft/approved/invoiced/sent 的明細 → 跳過
 - 該客戶該月有 rejected 的明細 → 刪除 rejected 後重新產出
+- voided 狀態的明細不算在內，允許重新產出（作廢重開場景）
 
 **測試案例：**
 - 正常產出 3 個客戶的月結明細
@@ -1675,11 +1680,13 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 - `PATCH /api/statements/:id/review` — 審核（body: `{ action: 'approve' | 'reject' }`）
 - `PATCH /api/statements/:id/invoice` — 標記已開票
 - `POST /api/statements/:id/send` — 寄送
+- `POST /api/statements/:id/void` — 作廢（body: `{ reason: "作廢原因" }`，僅 sent/invoiced 狀態可操作）
 
 狀態流轉：
 - 需開票：`draft → approved → invoiced → sent`
 - 不需開票：`draft → approved → sent`
 - 退回：`approved → rejected → (修正後) draft → approved`
+- 作廢重開：`sent → voided`（或 `invoiced → voided`），記錄 voided_at、voided_by、void_reason
 
 **Commit:** `feat: 實作月結 API + 審核流程 + 測試`
 
@@ -1951,7 +1958,7 @@ npm install -D @types/react @types/react-dom
 ### Task 37a: 月結管理 — 列表與手動觸發
 
 - `src/pages/StatementsPage.tsx`
-- 依設計文件 UI：Tab 切換狀態（待審核/已審核/已開票/已寄送/退回）
+- 依設計文件 UI：Tab 切換狀態（待審核/已審核/已開票/已寄送/退回/已作廢）
 - 月份選擇器、客戶篩選
 - 「重新產出」按鈕：觸發 `POST /api/statements/generate`（支援全部或指定客戶）
 - 列表顯示客戶名稱、站區、應收、應付、淨額、狀態
@@ -1970,8 +1977,9 @@ npm install -D @types/react @types/react-dom
 - 標記已開票按鈕（僅已審核狀態可操作）
 - 全部審核通過批次按鈕
 - 手動寄送按鈕
+- 作廢按鈕（僅 sent/invoiced 狀態顯示）：點擊後彈出原因輸入對話框，確認後呼叫 `POST /api/statements/:id/void`
 
-**Commit:** `feat: 實作月結審核流程與明細展開`
+**Commit:** `feat: 實作月結審核流程與明細展開（含作廢重開）`
 
 ---
 
@@ -1993,7 +2001,7 @@ npm install -D @types/react @types/react-dom
 1. 基礎資料 CRUD（6 項）
 2. 合約與計費（3 項）
 3. 車趟與品項（5 項）
-4. 月結流程（9 項）
+4. 月結流程（11 項）
 5. 報表（3 項）
 6. 系統管理（5 項）
 7. 響應式設計 RWD（7 項）

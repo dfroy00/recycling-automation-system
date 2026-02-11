@@ -733,17 +733,20 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 | payable_tax | Decimal? | 分開開票：應付稅額 |
 | payable_total | Decimal? | 分開開票：應付總額 |
 | detail_json | JSON? | 完整明細（品項、車趟費、附加費用等，草稿階段可為 null） |
-| status | Enum | draft / approved / rejected / invoiced / sent |
+| status | Enum | draft / approved / rejected / invoiced / sent / voided |
 | reviewed_by | Int? (FK → users) | 審核人 |
 | reviewed_at | DateTime? | 審核時間 |
 | sent_at | DateTime? | 寄送時間 |
 | sent_method | Enum? | email / line |
 | send_retry_count | Int | 寄送重試次數（預設 0，最大 3） |
 | send_error | String? | 最後一次寄送失敗原因 |
+| voided_at | DateTime? | 作廢時間 |
+| voided_by | Int? (FK → users) | 作廢操作人 |
+| void_reason | String? | 作廢原因（作廢時必填） |
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
 
-> **狀態流轉**：需開票客戶 `draft → approved → invoiced → sent`，不需開票客戶 `draft → approved → sent`（跳過 invoiced）。退回流程：`approved → rejected → draft（修正後重新提交）→ approved`。寄送失敗超過重試上限：`sent` 狀態不變，以 `send_retry_count >= 3` 且 `send_error IS NOT NULL` 判斷寄送失敗，可在排程管理頁面查看並手動重新寄送。
+> **狀態流轉**：需開票客戶 `draft → approved → invoiced → sent`，不需開票客戶 `draft → approved → sent`（跳過 invoiced）。退回流程：`approved → rejected → draft（修正後重新提交）→ approved`。作廢重開：`sent → voided`（或 `invoiced → voided`），作廢後修改車趟品項資料，再手動觸發重新產出。寄送失敗超過重試上限：`sent` 狀態不變，以 `send_retry_count >= 3` 且 `send_error IS NOT NULL` 判斷寄送失敗，可在排程管理頁面查看並手動重新寄送。
 >
 > **分開開票**：當客戶 `invoice_type=separate` 時，`receivable_*` 和 `payable_*` 欄位會有值，分別記錄應收端和應付端的小計/稅額/總額。`subtotal`/`tax_amount`/`total_amount` 在此模式下存淨額端的值。
 
@@ -948,6 +951,8 @@ getWorkday(targetDate):
 需開票：draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent（已寄送）
 不需開票：draft（草稿）→ approved（已審核）→ sent（已寄送）
 退回：   approved ↓→ rejected（退回）→ draft（修正後重新提交）→ approved
+作廢重開：sent → voided（已作廢）→ 修改車趟品項 → 手動重新產出 → draft → ...
+         invoiced → voided（開票後發現問題也可作廢）
 ```
 
 ### 手動觸發月結產出
@@ -968,6 +973,7 @@ getWorkday(targetDate):
 **防重複機制：**
 - 若該客戶該月已有 draft/approved/invoiced/sent 狀態的明細，跳過不重複產出
 - 若該客戶該月有 rejected 狀態的明細，先刪除 rejected 再重新產出
+- voided 狀態的明細不算在內，允許重新產出（作廢重開場景）
 
 **前端入口：**
 - 「月結管理」頁面頂部的「重新產出」按鈕
@@ -1651,6 +1657,7 @@ export function useResponsive() {
 | 月結 | /api/statements/:id/review | PATCH | 審核（通過/退回） |
 | 月結 | /api/statements/:id/invoice | PATCH | 標記已開票 |
 | 月結 | /api/statements/:id/send | POST | 寄送 |
+| 月結 | /api/statements/:id/void | POST | 作廢（body: `{ reason: "作廢原因" }`） |
 | 報表 | /api/reports/customers/:customerId | GET | 客戶明細 PDF（`?yearMonth=2026-01`） |
 | 報表 | /api/reports/sites/:siteId | GET | 站區彙總 Excel（`?yearMonth=2026-01`） |
 | 排程 | /api/schedule | GET | 排程狀態 |
@@ -1707,6 +1714,8 @@ export function useResponsive() {
 - [ ] 按趟明細客戶可獨立產出單趟明細
 - [ ] 月結明細 + 按趟分次付款的客戶，明細整月一份但付款拆趟次
 - [ ] 按趟明細客戶不允許設定「按趟分次付款」（等同一次付清，UI 鎖定）
+- [ ] 已寄送/已開票明細可作廢（需填原因），作廢後可修改資料並重新產出
+- [ ] 作廢的明細不影響防重複機制（voided 不算已存在）
 
 ### 報表
 - [ ] 客戶月結明細 PDF 正確產出（只有應收或應付時不顯示淨額）
