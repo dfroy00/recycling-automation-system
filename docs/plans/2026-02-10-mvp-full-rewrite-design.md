@@ -12,7 +12,7 @@
 
 ### MVP 原則
 
-- 資料來源：手動輸入 + Excel 匯入 + **Adapter 模式接入外部系統（POS/車機）**
+- 資料來源：CRUD 手動輸入 + **Adapter 模式接入外部系統（POS/車機）**
 - 外部系統整合：透過 Adapter 抽象層，MVP 使用 Mock DB 模擬，未來無縫切換真實 API
 - 通知寄送：Email 先做，LINE 預留接口後補
 - 權限分離：不做，所有使用者同等權限
@@ -157,6 +157,34 @@ export function createVehicleAdapter(): IVehicleAdapter {
 }
 ```
 
+### Adapter 健康檢查
+
+每個 Adapter 實作 `healthCheck()` 方法，回報連線狀態。系統啟動時和排程執行前自動檢查：
+
+```typescript
+// 健康檢查介面（IPosAdapter 和 IVehicleAdapter 皆須實作）
+interface IAdapterHealthCheck {
+  healthCheck(): Promise<{
+    status: 'ok' | 'error'        // 連線狀態
+    mode: 'mock' | 'real'         // 當前模式
+    message?: string              // 錯誤訊息（僅 error 時）
+    lastSyncAt?: Date             // 上次成功同步時間
+  }>
+}
+```
+
+**健康檢查 API 端點**：`GET /api/sync/status`（已列於 API 路由總覽）
+
+**檢查時機：**
+- 系統啟動時：自動執行健康檢查，記錄到 system_logs
+- 排程執行前：同步排程觸發前先檢查 Adapter 狀態，若 error 則跳過同步並通知管理員
+- 手動觸發：透過同步管理頁面的「測試連線」按鈕
+
+**錯誤處理策略：**
+- Mock 模式：healthCheck 恆回 `ok`（Mock DB 無連線問題）
+- Real 模式：嘗試呼叫外部 API 的 ping/heartbeat 端點
+- 連線失敗時：記錄到 system_logs，不阻擋手動 CRUD 操作，僅阻擋自動同步
+
 ### 資料同步方向
 
 ```
@@ -192,13 +220,48 @@ export function createVehicleAdapter(): IVehicleAdapter {
 外部系統資料                     本系統
 site_name: "北區"    ──比對──►  sites.name = "北區"  → site_id = 1
 customer_name: "大明" ──比對──►  customers.name = "大明" → customer_id = 5
-item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id = 3
+item_name: "總紙"    ──比對──►  items.name = "總紙"  → item_id = 1
 ```
 
 **對應規則：**
 - 以**名稱精確比對**為主（外部系統的名稱必須與本系統一致）
 - 比對失敗時：記錄到 system_logs，標記該筆為「待人工處理」，不自動建立
 - Mock 階段：seed 假資料時確保名稱一致，不會有比對問題
+
+### POS 同步定價策略
+
+POS 收運紀錄包含 `unit_price`（POS 端單價），同步到本系統建立 trip_items 時的定價邏輯：
+
+| 客戶類型 | 單價來源 | billing_direction 來源 | POS 端 unit_price 處理 |
+|---------|---------|----------------------|----------------------|
+| 簽約客戶 | **本系統合約價**（自動帶入） | 合約設定 | 忽略（POS 端單價僅供參考，不影響計費） |
+| 臨時客戶 | **POS 端 unit_price** | 預設 receivable，可人工調整 | 直接作為 trip_items.unit_price |
+
+> POS 端單價可能與合約價不同（POS 可能未及時更新），以本系統合約價為準。
+
+### POS 與車機同步去重策略
+
+POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避免建立重複車趟：
+
+```
+去重比對鍵（依優先順序）：
+1. external_id 精確比對（最可靠，同來源系統的唯一識別）
+2. 同一客戶 + 同一日期 + 同一站區 + 時間區間（±30分鐘）
+
+├─ POS 同步先行 → 建立 trip + trip_items（含品項重量）
+├─ 車機同步後行 → 先比對 external_id，再比對「客戶+日期+站區+時間」
+│   ├─ 匹配到已存在的 trip → 補充 driver + vehicle_plate，不建立新 trip
+│   └─ 無匹配 → 建立新 trip（source=vehicle_sync），需人工補充品項
+└─ 同一客戶同一天同一站區多趟：依時間區間區分不同 trip
+```
+
+**規則：**
+- POS 同步建立的 trip：`source=pos_sync`，包含品項明細
+- 車機同步時，**優先以 `external_id` 精確比對**（避免同一筆重複匯入），再以「客戶+日期+站區+時間區間」模糊比對
+- 同一客戶同一天同一站區可能有多趟收運，**必須搭配時間資訊區分**，純「客戶+日期+站區」不足以唯一識別
+- 車機同步未匹配到 trip 時，建立新 trip（`source=vehicle_sync`），不含品項明細，需人工補充
+- 同步順序建議：先 POS → 再車機
+- 每筆同步紀錄的 `external_id` 必須記錄，供後續追溯和去重
 
 ---
 
@@ -276,13 +339,13 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
               │ 資料進系統    │
               └──────┬───────┘
                      │
-           ┌─────────┼─────────────────┐
-           ▼         ▼                 ▼
-    ┌────────────┐ ┌────────────┐ ┌──────────────┐
-    │Excel批次匯入│ │系統手動建立 │ │ POS/車機同步  │
-    └─────┬──────┘ └─────┬──────┘ │（Adapter拉取）│
-          │              │        └──────┬───────┘
-          └──────────┬───┴───────────────┘
+           ┌─────────┴─────────────────┐
+           ▼                           ▼
+    ┌────────────┐              ┌──────────────┐
+    │系統手動建立 │              │ POS/車機同步  │
+    │  （CRUD）  │              │（Adapter拉取）│
+    └─────┬──────┘              └──────┬───────┘
+          └─────────────┬──────────────┘
                      ▼
               ┌──────────────────┐
               │ 建立車趟 + 品項   │
@@ -401,7 +464,7 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 
 - **品項層級**：每個品項各自設定單價和費用方向
 - **費用方向**：應收（客戶付我方）/ 應付（我方付客戶）/ 不收費
-- **同一客戶不同品項可有不同方向**（例如廢紙應付、廢棄物處理應收）
+- **同一客戶不同品項可有不同方向**（例如總紙應付、PET 應收）
 - **車趟費**：我方向客戶收取，按次或按月計算
 - **附加費用**：自由輸入名稱和固定金額，每筆各自設定應收或應付方向，支援按月或按趟頻率
 - **明細產出**：月結（整月一份）/ 按趟（每趟一份），與簽約/臨時類型獨立設定
@@ -429,10 +492,9 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 6. 合約品項 CRUD（品項 + 單價 + 費用方向）
 
 ### 日常營運
-7. 車趟紀錄建立（手動 / POS 同步 / 車機同步）
+7. 車趟紀錄建立（手動 CRUD / POS 同步 / 車機同步）
 8. 車趟品項明細（簽約客戶自動帶入合約價快照，臨時客戶手動輸入）
-9. Excel 批次匯入車趟 + 品項
-10. 車趟/品項資料修正
+9. 車趟/品項資料修正
 
 ### 月結與發票
 11. 每月 5 號自動產出全部月結客戶明細（草稿狀態）
@@ -512,12 +574,14 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | id | Int (PK) | 自動遞增 |
-| name | String | 站區名稱 |
+| name | String (unique) | 站區名稱（外部系統名稱比對需唯一） |
 | address | String? | 地址 |
 | phone | String? | 聯絡電話 |
-| status | Enum | active / inactive |
+| status | String | active / inactive |
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
+
+> **型別慣例**：所有狀態/類型欄位在設計文件標示語意值（如 active/inactive），Prisma Schema 統一使用 `String` 型別而非 `enum`，驗證在應用層實作。此慣例適用於本文件所有標示 Enum 的欄位。
 
 #### items（品項主檔）
 
@@ -527,7 +591,7 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 |------|------|------|
 | id | Int (PK) | 自動遞增，同時作為品項編號 |
 | name | String (unique) | 品項名稱（全公司統一） |
-| category | String? | 分類 |
+| category | String? | 分類（UI 下拉選單：紙類/鐵類/五金類/塑膠類/雜項，可擴充） |
 | unit | String | 計量單位（kg、件、袋等） |
 | status | Enum | active / inactive |
 | created_at | DateTime | 建立時間 |
@@ -605,16 +669,19 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 
 #### trips（車趟紀錄）
 
+> **關聯**：trips 與 customers、sites 皆建立 FK relation，可 include 聯查。
+
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | id | Int (PK) | 自動遞增 |
-| customer_id | Int (FK) | 客戶 |
-| site_id | Int (FK) | 站區 |
+| customer_id | Int (FK → customers) | 客戶 |
+| site_id | Int (FK → sites) | 站區 |
 | trip_date | Date | 收運日期 |
+| trip_time | String? | 收運時間（如 08:30，用於同步去重比對，手動建立可為 null） |
 | driver | String? | 司機 |
 | vehicle_plate | String? | 車牌 |
-| source | Enum | 資料來源：**manual**（手動建立）/ **excel**（Excel 匯入）/ **pos_sync**（POS 同步）/ **vehicle_sync**（車機同步） |
-| external_id | String? | 外部系統原始 ID（同步資料追溯用，手動/Excel 為 null） |
+| source | Enum | 資料來源：**manual**（手動建立）/ **pos_sync**（POS 同步）/ **vehicle_sync**（車機同步） |
+| external_id | String? | 外部系統原始 ID（同步資料追溯用，手動為 null） |
 | notes | String? | 備註 |
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
@@ -643,25 +710,39 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | id | Int (PK) | 自動遞增 |
-| customer_id | Int (FK) | 客戶 |
+| customer_id | Int (FK → customers) | 客戶 |
 | statement_type | Enum | **monthly**（月結明細）/ **per_trip**（按趟明細） |
-| trip_id | Int? (FK) | 關聯車趟（僅 per_trip 類型使用，monthly 為 null） |
+| trip_id | Int? (FK → trips) | 關聯車趟（僅 per_trip 類型使用，monthly 為 null） |
 | year_month | String | 結算月份（如 2026-01） |
-| total_receivable | Decimal | 應收合計（含車趟費及應收附加費用） |
-| total_payable | Decimal | 應付合計（含應付附加費用） |
-| net_amount | Decimal | 淨額（正=應收，負=應付） |
-| trip_fee_total | Decimal | 車趟費合計 |
-| subtotal | Decimal | 小計（依開票方式計算） |
+| item_receivable | Decimal | 品項應收小計 |
+| item_payable | Decimal | 品項應付小計 |
+| trip_fee_total | Decimal | 車趟費合計（固定為應收） |
+| additional_fee_receivable | Decimal | 應收附加費用合計 |
+| additional_fee_payable | Decimal | 應付附加費用合計 |
+| total_receivable | Decimal | 應收合計 = 品項應收 + 車趟費 + 應收附加費用 |
+| total_payable | Decimal | 應付合計 = 品項應付 + 應付附加費用 |
+| net_amount | Decimal | 淨額 = 應收合計 - 應付合計（正=應收，負=應付） |
+| subtotal | Decimal | 小計（淨額模式用淨額，分開模式各自計算） |
 | tax_amount | Decimal | 稅額（5%） |
 | total_amount | Decimal | 總額（小計 + 稅額） |
-| detail_json | JSON | 完整明細（品項、車趟費等） |
+| receivable_subtotal | Decimal? | 分開開票：應收小計（僅 invoice_type=separate 有值） |
+| receivable_tax | Decimal? | 分開開票：應收稅額 |
+| receivable_total | Decimal? | 分開開票：應收總額 |
+| payable_subtotal | Decimal? | 分開開票：應付小計 |
+| payable_tax | Decimal? | 分開開票：應付稅額 |
+| payable_total | Decimal? | 分開開票：應付總額 |
+| detail_json | JSON | 完整明細（品項、車趟費、附加費用等） |
 | status | Enum | draft / approved / rejected / invoiced / sent |
-| reviewed_by | Int? (FK) | 審核人 |
+| reviewed_by | Int? (FK → users) | 審核人 |
 | reviewed_at | DateTime? | 審核時間 |
 | sent_at | DateTime? | 寄送時間 |
 | sent_method | Enum? | email / line |
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
+
+> **狀態流轉**：需開票客戶 `draft → approved → invoiced → sent`，不需開票客戶 `draft → approved → sent`（跳過 invoiced）。退回流程：`draft → rejected → draft → approved`。
+>
+> **分開開票**：當客戶 `invoice_type=separate` 時，`receivable_*` 和 `payable_*` 欄位會有值，分別記錄應收端和應付端的小計/稅額/總額。`subtotal`/`tax_amount`/`total_amount` 在此模式下存淨額端的值。
 
 #### holidays（假日主檔）
 
@@ -694,7 +775,7 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 | id | Int (PK) | 自動遞增 |
 | event_type | String | 事件類型 |
 | event_content | String | 事件內容 |
-| user_id | Int? (FK) | 操作使用者 |
+| user_id | Int? (FK → users) | 操作使用者 |
 | created_at | DateTime | 建立時間 |
 
 ### Mock DB 資料表（外部系統模擬）
@@ -792,6 +873,8 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 └─ 獨立審核和寄送，不走月結流程
 ```
 
+> **按趟結算客戶的月度附加費用限制**：按趟結算客戶（`statement_type=per_trip`）的附加費用只允許設定 `frequency=per_trip`。UI 建立附加費用時，若客戶為按趟結算，`frequency` 鎖定為 `per_trip`，不可選 `monthly`。避免月度費用無處歸屬的邏輯漏洞。
+
 ### 計價邏輯差異
 
 | | 簽約客戶 | 臨時客戶 |
@@ -800,6 +883,14 @@ item_name: "廢紙"    ──比對──►  items.name = "廢紙"  → item_id
 | 單價來源 | 合約約定價（自動帶入） | 當次報價（手動輸入） |
 | 費用方向 | 合約約定（自動帶入） | 當次約定（手動選擇） |
 | 記錄方式 | trip_items 快照合約價 | trip_items 直接記錄報價 |
+
+### 合約到期處理
+
+當簽約客戶的有效合約全部到期（`status=expired`）且尚未建立新合約時：
+- 建立車趟品項時，系統**無法自動帶入合約價**
+- 此時改為**手動輸入模式**（等同臨時客戶），要求使用者手動輸入單價和方向
+- UI 提示：「此客戶目前無有效合約，請手動輸入單價和費用方向」
+- 不阻止建立車趟品項，確保業務不中斷
 
 ---
 
@@ -830,9 +921,9 @@ getWorkday(targetDate):
 ### 月結明細狀態流轉
 
 ```
-draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent（已寄送）
-                   ↓
-              rejected（退回）→ 修正後重新提交 → approved
+需開票：draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent（已寄送）
+不需開票：draft（草稿）→ approved（已審核）→ sent（已寄送）
+退回：   approved ↓→ rejected（退回）→ draft（修正後重新提交）→ approved
 ```
 
 ### 自動化時間線
@@ -847,23 +938,6 @@ draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent�
 ```
 
 ---
-
-## 8. Excel 匯入格式
-
-系統提供標準範本讓行政下載填寫，之後取得實際 Excel 格式再調整解析。
-
-### 車趟匯入範本
-
-```
-| 收運日期 | 客戶名稱 | 司機 | 車牌 | 品項 | 數量 | 單位 | 單價 | 費用方向 |
-|---------|---------|------|------|------|------|------|------|---------|
-| 2026/01/05 | 大明企業 | 王大明 | ABC-1234 | 廢紙 | 200 | kg | 3.5 | 應付 |
-| 2026/01/05 | 大明企業 | 王大明 | ABC-1234 | 廢塑膠 | 100 | kg | 2.0 | 應收 |
-| 2026/01/05 | 小華工廠 | 李小華 | DEF-5678 | 廢鐵 | 500 | kg | 8.0 | 應付 |
-```
-
-- 同一趟車收多個品項 → 多行，相同日期+客戶+司機+車牌
-- 簽約客戶的單價和費用方向可留空 → 系統自動帶入合約價
 
 ---
 
@@ -881,10 +955,10 @@ draft（草稿）→ approved（已審核）→ invoiced（已開票）→ sent�
 │                                              │
 │  收運明細                                     │
 │  日期    │品項  │數量│單位│單價│費用方向│金額   │
-│  01/05  │廢紙  │200│kg │3.5│ 應付  │  700  │
-│  01/05  │廢塑膠│100│kg │2.0│ 應收  │  200  │
-│  01/12  │廢紙  │300│kg │3.5│ 應付  │1,050  │
-│  01/20  │廢塑膠│150│kg │2.0│ 應收  │  300  │
+│  01/05  │總紙  │200│kg │3.5│ 應付  │  700  │
+│  01/05  │PET   │100│kg │2.0│ 應收  │  200  │
+│  01/12  │總紙  │300│kg │3.5│ 應付  │1,050  │
+│  01/20  │PET   │150│kg │2.0│ 應收  │  300  │
 │                                              │
 │  車趟費：5趟 × 500元 = 2,500                  │
 │                                              │
@@ -932,10 +1006,10 @@ XX站區 - 2026年1月 品項彙總
 
 | 編號 | 品項 | 單位 | 總數量 | 應收金額 | 應付金額 | 淨額 |
 |------|------|------|-------|---------|---------|------|
-| 1   | 廢紙  | kg  | 5,000 | 0       | 17,500  |-17,500|
-| 2   | 廢塑膠| kg  | 2,000 | 4,000   | 0       | 4,000|
-| 3   | 廢鐵  | kg  | 3,000 | 0       | 24,000  |-24,000|
-| 5   | 木棧板| 件  | 50    | 2,500   | 0       | 2,500|
+| 1   | 總紙  | kg  | 5,000 | 0       | 17,500  |-17,500|
+| 2   | PET   | kg  | 2,000 | 4,000   | 0       | 4,000|
+| 3   | 總鐵  | kg  | 3,000 | 0       | 24,000  |-24,000|
+| 5   | 紅銅燒| kg  | 50    | 2,500   | 0       | 2,500|
 |------|------|------|-------|---------|---------|------|
 | 合計  |     |      |       | 6,500   | 41,500  |-35,000|
 ```
@@ -961,7 +1035,7 @@ XX站區 - 2026年1月 品項彙總
 │            │                                        │
 │  營運管理 ▼ │                                        │
 │  • 車趟管理 │                                        │
-│  • Excel匯入│                                        │
+│  • 外部同步 │                                        │
 │            │                                        │
 │  帳務管理 ▼ │                                        │
 │  • 月結管理 │                                        │
@@ -1051,11 +1125,11 @@ XX站區 - 2026年1月 品項彙總
 │  ┌──────────────────────────────────────────────┐│
 │  │編號│品項名稱  │單位│單價(元)│費用方向│操作  ││
 │  │───┼────────┼───┼──────┼──────┼─────││
-│  │ 1 │廢紙     │ kg │  3.5  │ 應付  │[編輯]││
-│  │ 2 │廢鐵     │ kg │  8.0  │ 應付  │[編輯]││
-│  │ 3 │廢塑膠   │ kg │  2.0  │ 應收  │[編輯]││
-│  │ 4 │廢棄物處理│ kg │ 15.0  │ 應收  │[編輯]││
-│  │ 5 │木棧板   │ 件 │ 50.0  │ 應收  │[編輯]││
+│  │ 1 │總紙     │ kg │  3.5  │ 應付  │[編輯]││
+│  │ 2 │總鐵     │ kg │  8.0  │ 應付  │[編輯]││
+│  │ 3 │PET      │ kg │  2.0  │ 應收  │[編輯]││
+│  │ 4 │紅銅燒   │ kg │ 15.0  │ 應收  │[編輯]││
+│  │ 5 │大鐵桶   │ kg │ 50.0  │ 應收  │[編輯]││
 │  └──────────────────────────────────────────────┘│
 └──────────────────────────────────────────────────┘
 ```
@@ -1082,9 +1156,9 @@ XX站區 - 2026年1月 品項彙總
 │                                                  │
 │  品項明細                                         │
 │  日期    │品項    │數量│單位│單價 │方向│金額        │
-│  01/05  │廢紙    │ 200│ kg │3.5 │應付│  -700      │
-│  01/05  │廢塑膠  │ 100│ kg │2.0 │應收│  +200      │
-│  01/12  │廢紙    │ 300│ kg │3.5 │應付│ -1,050     │
+│  01/05  │總紙    │ 200│ kg │3.5 │應付│  -700      │
+│  01/05  │PET     │ 100│ kg │2.0 │應收│  +200      │
+│  01/12  │總紙    │ 300│ kg │3.5 │應付│ -1,050     │
 │  ...                                             │
 │                                                  │
 │  車趟費：5趟 × 500元 = +2,500（應收）              │
@@ -1260,13 +1334,13 @@ export function useResponsive() {
 | `backend/src/adapters/real/real-pos.adapter.ts` | 真實 POS API 實作（未來） |
 | `backend/src/adapters/real/real-vehicle.adapter.ts` | 真實車機 API 實作（未來） |
 | **Routes** | |
+| `backend/src/routes/dashboard.ts` | 儀表板統計 API |
 | `backend/src/routes/auth.ts` | 認證 API |
 | `backend/src/routes/sites.ts` | 站區 CRUD |
 | `backend/src/routes/items.ts` | 品項 CRUD |
 | `backend/src/routes/customers.ts` | 客戶 CRUD + 客戶附加費用 CRUD |
 | `backend/src/routes/contracts.ts` | 合約 + 合約品項 CRUD |
 | `backend/src/routes/trips.ts` | 車趟 + 趟次品項 CRUD |
-| `backend/src/routes/import.ts` | Excel 匯入 |
 | `backend/src/routes/statements.ts` | 月結明細 + 審核 + 寄送 |
 | `backend/src/routes/reports.ts` | 報表產出 |
 | `backend/src/routes/schedule.ts` | 排程管理 |
@@ -1298,7 +1372,7 @@ export function useResponsive() {
 | `frontend/src/pages/CustomersPage.tsx` | 客戶管理 |
 | `frontend/src/pages/ContractsPage.tsx` | 合約管理 + 合約品項 |
 | `frontend/src/pages/TripsPage.tsx` | 車趟管理 + 品項明細 |
-| `frontend/src/pages/ImportPage.tsx` | Excel 匯入 |
+| `frontend/src/pages/SyncPage.tsx` | 外部系統同步（手動觸發同步、同步結果、比對失敗紀錄） |
 | `frontend/src/pages/StatementsPage.tsx` | 月結管理 + 審核 |
 | `frontend/src/pages/ReportsPage.tsx` | 報表 |
 | `frontend/src/pages/HolidaysPage.tsx` | 假日設定 |
@@ -1311,6 +1385,7 @@ export function useResponsive() {
 |------|------|------|------|
 | 認證 | /api/auth/login | POST | 登入 |
 | 認證 | /api/auth/me | GET | 取得當前使用者 |
+| 儀表板 | /api/dashboard/stats | GET | 彙總統計（本月車趟數、應收/應付總額、客戶數、待審核數、合約到期提醒） |
 | 站區 | /api/sites | GET/POST | 列表 / 新增 |
 | 站區 | /api/sites/:id | GET/PATCH/DELETE | 詳情 / 更新 / 刪除 |
 | 品項 | /api/items | GET/POST | 列表 / 新增 |
@@ -1325,19 +1400,19 @@ export function useResponsive() {
 | 車趟 | /api/trips/:id | GET/PATCH/DELETE | 詳情 / 更新 / 刪除 |
 | 車趟品項 | /api/trips/:id/items | GET/POST | 列表 / 新增 |
 | 車趟品項 | /api/trips/:tid/items/:iid | PATCH/DELETE | 更新 / 刪除 |
-| 匯入 | /api/import/trips | POST | Excel 批次匯入 |
 | 月結 | /api/statements | GET | 月結明細列表 |
 | 月結 | /api/statements/generate | POST | 手動觸發產出 |
 | 月結 | /api/statements/:id | GET | 明細詳情 |
 | 月結 | /api/statements/:id/review | PATCH | 審核（通過/退回） |
+| 月結 | /api/statements/:id/invoice | PATCH | 標記已開票 |
 | 月結 | /api/statements/:id/send | POST | 寄送 |
-| 報表 | /api/reports/customer/:id | GET | 客戶明細 PDF |
-| 報表 | /api/reports/site/:id | GET | 站區彙總 Excel |
+| 報表 | /api/reports/customers/:customerId | GET | 客戶明細 PDF（`?yearMonth=2026-01`） |
+| 報表 | /api/reports/sites/:siteId | GET | 站區彙總 Excel（`?yearMonth=2026-01`） |
 | 排程 | /api/schedule | GET | 排程狀態 |
 | 排程 | /api/schedule/:name/trigger | POST | 手動觸發 |
 | 假日 | /api/holidays | GET/POST | 列表 / 新增 |
 | 假日 | /api/holidays/:id | DELETE | 刪除 |
-| 假日 | /api/holidays/import | POST | 批次匯入 |
+| 假日 | /api/holidays/import | POST | 批次匯入（JSON 陣列：`[{date, name, year}]`） |
 | 使用者 | /api/users | GET/POST | 列表 / 新增 |
 | 使用者 | /api/users/:id | GET/PATCH/DELETE | 詳情 / 更新 / 刪除 |
 | 客戶附加費用 | /api/customers/:id/fees | GET/POST | 列表 / 新增 |
@@ -1373,14 +1448,14 @@ export function useResponsive() {
 - [ ] 車趟紀錄 CRUD 正常運作
 - [ ] 簽約客戶建立車趟品項時，自動帶入合約價格和方向快照
 - [ ] 臨時客戶建立車趟品項時，可手動輸入報價和方向
-- [ ] Excel 批次匯入車趟 + 品項正常運作
-- [ ] 車趟紀錄正確記錄資料來源（manual / excel / pos_sync / vehicle_sync）
+- [ ] 車趟紀錄正確記錄資料來源（manual / pos_sync / vehicle_sync）
 
 ### 月結流程
 - [ ] 計費引擎正確計算應收/應付/車趟費/附加費用/淨額/小計/稅額(5%)/總額
 - [ ] 開票方式支援淨額一張和應收應付分開兩種模式
 - [ ] 月結明細自動產出（5 號，遇假日提前至前一工作日）
-- [ ] 審核流程正常（草稿→審核通過/退回→重新提交）
+- [ ] 審核流程正常（草稿→審核通過→已開票→已寄送，或草稿→審核通過→已寄送）
+- [ ] 退回流程正常（審核通過→退回→修正後重新提交→審核通過）
 - [ ] 已審核明細依各客戶寄送日自動寄送 Email（預設 15 號，遇假日提前）
 - [ ] 按趟明細客戶可獨立產出單趟明細
 - [ ] 月結明細 + 按趟分次付款的客戶，明細整月一份但付款拆趟次
@@ -1415,7 +1490,9 @@ export function useResponsive() {
 - [ ] Mock 假資料產生器可批量產生測試資料
 - [ ] 環境變數切換 Mock/Real 模式正常運作
 - [ ] 同步 API 路由正常運作（pull/push）
-- [ ] Adapter 狀態查詢 API 正確顯示當前模式
+- [ ] Adapter 健康檢查（healthCheck）正確回報連線狀態
+- [ ] 同步排程執行前自動檢查 Adapter 狀態，連線失敗時跳過並通知
+- [ ] Adapter 狀態查詢 API 正確顯示當前模式和連線狀態
 
 ---
 

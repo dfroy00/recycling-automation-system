@@ -181,6 +181,7 @@ model Site {
   updatedAt DateTime @updatedAt @map("updated_at") /// 更新時間
 
   customers Customer[] /// 站區下的客戶
+  trips     Trip[]     /// 站區的車趟
 
   @@map("sites")
 }
@@ -295,13 +296,14 @@ model Trip {
   tripDate     DateTime @map("trip_date") @db.Date /// 收運日期
   driver       String?  /// 司機
   vehiclePlate String?  @map("vehicle_plate") /// 車牌
-  source       String   @default("manual") /// 資料來源：manual / excel / pos_sync / vehicle_sync
+  source       String   @default("manual") /// 資料來源：manual / pos_sync / vehicle_sync
   externalId   String?  @map("external_id") /// 外部系統原始 ID
   notes        String?  /// 備註
   createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
   updatedAt    DateTime @updatedAt @map("updated_at") /// 更新時間
 
   customer   Customer   @relation(fields: [customerId], references: [id])
+  site       Site       @relation(fields: [siteId], references: [id])
   items      TripItem[] /// 趟次品項明細
   statements Statement[] @relation("TripStatement") /// 按趟明細
 
@@ -328,29 +330,40 @@ model TripItem {
 
 // ==================== 結算明細（月結 + 按趟） ====================
 model Statement {
-  id              Int       @id @default(autoincrement()) /// 自動遞增
-  customerId      Int       @map("customer_id") /// 客戶
-  statementType   String    @map("statement_type") /// monthly / per_trip
-  tripId          Int?      @map("trip_id") /// 關聯車趟（僅 per_trip 使用）
-  yearMonth       String    @map("year_month") /// 結算月份（如 2026-01）
-  totalReceivable Decimal   @default(0) @map("total_receivable") @db.Decimal(12, 2) /// 應收合計
-  totalPayable    Decimal   @default(0) @map("total_payable") @db.Decimal(12, 2) /// 應付合計
-  netAmount       Decimal   @default(0) @map("net_amount") @db.Decimal(12, 2) /// 淨額
-  tripFeeTotal    Decimal   @default(0) @map("trip_fee_total") @db.Decimal(12, 2) /// 車趟費合計
-  subtotal        Decimal   @default(0) @db.Decimal(12, 2) /// 小計
-  taxAmount       Decimal   @default(0) @map("tax_amount") @db.Decimal(12, 2) /// 稅額（5%）
-  totalAmount     Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2) /// 總額
-  detailJson      Json?     @map("detail_json") /// 完整明細 JSON
-  status          String    @default("draft") /// draft / approved / rejected / invoiced / sent
-  reviewedBy      Int?      @map("reviewed_by") /// 審核人
-  reviewedAt      DateTime? @map("reviewed_at") /// 審核時間
-  sentAt          DateTime? @map("sent_at") /// 寄送時間
-  sentMethod      String?   @map("sent_method") /// email / line
-  createdAt       DateTime  @default(now()) @map("created_at") /// 建立時間
-  updatedAt       DateTime  @updatedAt @map("updated_at") /// 更新時間
+  id                    Int       @id @default(autoincrement()) /// 自動遞增
+  customerId            Int       @map("customer_id") /// 客戶
+  statementType         String    @map("statement_type") /// monthly / per_trip
+  tripId                Int?      @map("trip_id") /// 關聯車趟（僅 per_trip 使用）
+  yearMonth             String    @map("year_month") /// 結算月份（如 2026-01）
+  itemReceivable        Decimal   @default(0) @map("item_receivable") @db.Decimal(12, 2) /// 品項應收小計
+  itemPayable           Decimal   @default(0) @map("item_payable") @db.Decimal(12, 2) /// 品項應付小計
+  tripFeeTotal          Decimal   @default(0) @map("trip_fee_total") @db.Decimal(12, 2) /// 車趟費合計
+  additionalFeeReceivable Decimal @default(0) @map("additional_fee_receivable") @db.Decimal(12, 2) /// 應收附加費用合計
+  additionalFeePayable  Decimal   @default(0) @map("additional_fee_payable") @db.Decimal(12, 2) /// 應付附加費用合計
+  totalReceivable       Decimal   @default(0) @map("total_receivable") @db.Decimal(12, 2) /// 應收合計
+  totalPayable          Decimal   @default(0) @map("total_payable") @db.Decimal(12, 2) /// 應付合計
+  netAmount             Decimal   @default(0) @map("net_amount") @db.Decimal(12, 2) /// 淨額
+  subtotal              Decimal   @default(0) @db.Decimal(12, 2) /// 小計
+  taxAmount             Decimal   @default(0) @map("tax_amount") @db.Decimal(12, 2) /// 稅額（5%）
+  totalAmount           Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2) /// 總額
+  receivableSubtotal    Decimal?  @map("receivable_subtotal") @db.Decimal(12, 2) /// 分開開票：應收小計
+  receivableTax         Decimal?  @map("receivable_tax") @db.Decimal(12, 2) /// 分開開票：應收稅額
+  receivableTotal       Decimal?  @map("receivable_total") @db.Decimal(12, 2) /// 分開開票：應收總額
+  payableSubtotal       Decimal?  @map("payable_subtotal") @db.Decimal(12, 2) /// 分開開票：應付小計
+  payableTax            Decimal?  @map("payable_tax") @db.Decimal(12, 2) /// 分開開票：應付稅額
+  payableTotal          Decimal?  @map("payable_total") @db.Decimal(12, 2) /// 分開開票：應付總額
+  detailJson            Json?     @map("detail_json") /// 完整明細 JSON
+  status                String    @default("draft") /// draft / approved / rejected / invoiced / sent
+  reviewedBy            Int?      @map("reviewed_by") /// 審核人
+  reviewedAt            DateTime? @map("reviewed_at") /// 審核時間
+  sentAt                DateTime? @map("sent_at") /// 寄送時間
+  sentMethod            String?   @map("sent_method") /// email / line
+  createdAt             DateTime  @default(now()) @map("created_at") /// 建立時間
+  updatedAt             DateTime  @updatedAt @map("updated_at") /// 更新時間
 
   customer Customer @relation(fields: [customerId], references: [id])
   trip     Trip?    @relation("TripStatement", fields: [tripId], references: [id])
+  reviewer User?    @relation(fields: [reviewedBy], references: [id])
 
   @@map("statements")
 }
@@ -378,6 +391,9 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
   updatedAt    DateTime @updatedAt @map("updated_at") /// 更新時間
 
+  statements  Statement[] /// 審核過的明細
+  systemLogs  SystemLog[] /// 操作日誌
+
   @@map("users")
 }
 
@@ -388,6 +404,8 @@ model SystemLog {
   eventContent String   @map("event_content") /// 事件內容
   userId       Int?     @map("user_id") /// 操作使用者
   createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
+
+  user User? @relation(fields: [userId], references: [id])
 
   @@map("system_logs")
 }
@@ -493,7 +511,7 @@ async function main() {
   })
 
   // 2. 站區（7 個）
-  const siteNames = ['北區站', '南區站', '東區站', '西區站', '中區站', '新莊站', '板橋站']
+  const siteNames = ['新竹站', '草屯站', '金馬站', '員林站', '斗六站', '和美站', '神岡站']
   for (const name of siteNames) {
     await prisma.site.upsert({
       where: { name },
@@ -502,16 +520,59 @@ async function main() {
     })
   }
 
-  // 3. 品項
+  // 3. 品項（5 大分類，共 46 項）
   const items = [
-    { name: '廢紙', unit: 'kg', category: '紙類' },
-    { name: '廢鐵', unit: 'kg', category: '金屬類' },
-    { name: '廢塑膠', unit: 'kg', category: '塑膠類' },
-    { name: '廢棄物處理', unit: 'kg', category: '處理類' },
-    { name: '木棧板', unit: '件', category: '木材類' },
-    { name: '廢銅', unit: 'kg', category: '金屬類' },
-    { name: '廢鋁', unit: 'kg', category: '金屬類' },
-    { name: '廢紙箱', unit: 'kg', category: '紙類' },
+    // 紙類
+    { name: '總紙', unit: 'kg', category: '紙類' },
+    { name: '報紙', unit: 'kg', category: '紙類' },
+    { name: '雜誌', unit: 'kg', category: '紙類' },
+    { name: '廣告紙', unit: 'kg', category: '紙類' },
+    { name: '紙袋', unit: 'kg', category: '紙類' },
+    // 鐵類
+    { name: '沖床鐵THS', unit: 'kg', category: '鐵類' },
+    { name: '特工鐵THF', unit: 'kg', category: '鐵類' },
+    { name: '鍛造鐵', unit: 'kg', category: '鐵類' },
+    { name: '西工鐵', unit: 'kg', category: '鐵類' },
+    { name: '總鐵', unit: 'kg', category: '鐵類' },
+    { name: '古物鐵', unit: 'kg', category: '鐵類' },
+    { name: '大鐵桶', unit: 'kg', category: '鐵類' },
+    { name: '鐵罐', unit: 'kg', category: '鐵類' },
+    { name: '鐵粉', unit: 'kg', category: '鐵類' },
+    { name: '中厚版', unit: 'kg', category: '鐵類' },
+    { name: '中古料', unit: 'kg', category: '鐵類' },
+    { name: '封閉式容器', unit: 'kg', category: '鐵類' },
+    // 五金類
+    { name: '青銅', unit: 'kg', category: '五金類' },
+    { name: '馬達', unit: 'kg', category: '五金類' },
+    { name: '熱水器', unit: 'kg', category: '五金類' },
+    { name: '紅銅燒', unit: 'kg', category: '五金類' },
+    { name: '紅銅割', unit: 'kg', category: '五金類' },
+    { name: '白鐵', unit: 'kg', category: '五金類' },
+    { name: '軟鋁(家庭仔)', unit: 'kg', category: '五金類' },
+    { name: '軟鋁(厚料)', unit: 'kg', category: '五金類' },
+    { name: '硬鋁', unit: 'kg', category: '五金類' },
+    { name: '電線', unit: 'kg', category: '五金類' },
+    { name: '鋁罐', unit: 'kg', category: '五金類' },
+    { name: '銅排', unit: 'kg', category: '五金類' },
+    { name: '鉛', unit: 'kg', category: '五金類' },
+    { name: '鋅', unit: 'kg', category: '五金類' },
+    // 塑膠類
+    { name: 'PET', unit: 'kg', category: '塑膠類' },
+    { name: 'HDPE', unit: 'kg', category: '塑膠類' },
+    { name: 'PVC', unit: 'kg', category: '塑膠類' },
+    { name: 'LDPE', unit: 'kg', category: '塑膠類' },
+    { name: 'PP', unit: 'kg', category: '塑膠類' },
+    { name: 'PS', unit: 'kg', category: '塑膠類' },
+    { name: '其他塑膠', unit: 'kg', category: '塑膠類' },
+    // 雜項
+    { name: '壓克力', unit: 'kg', category: '雜項' },
+    { name: '日光燈管', unit: 'kg', category: '雜項' },
+    { name: '電瓶', unit: 'kg', category: '雜項' },
+    { name: '乾電池', unit: 'kg', category: '雜項' },
+    { name: 'CD片', unit: 'kg', category: '雜項' },
+    { name: 'PP打包帶', unit: 'kg', category: '雜項' },
+    { name: '大青桶', unit: 'kg', category: '雜項' },
+    { name: '蘆筍籃', unit: 'kg', category: '雜項' },
   ]
   for (const item of items) {
     await prisma.item.upsert({
@@ -544,6 +605,129 @@ async function main() {
       create: { date: new Date(h.date), name: h.name, year: 2026 },
     })
   }
+
+  // 5. 測試客戶（簽約 + 臨時）
+  const hsinchu = await prisma.site.findUnique({ where: { name: '新竹站' } })
+  const caotun = await prisma.site.findUnique({ where: { name: '草屯站' } })
+
+  const customer1 = await prisma.customer.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      siteId: hsinchu!.id,
+      name: '大明企業',
+      contactPerson: '陳大明',
+      phone: '03-1234567',
+      address: '新竹市東區光復路100號',
+      type: 'contracted',
+      tripFeeEnabled: true,
+      tripFeeType: 'per_trip',
+      tripFeeAmount: 500,
+      statementType: 'monthly',
+      paymentType: 'lump_sum',
+      invoiceRequired: true,
+      invoiceType: 'net',
+      notificationMethod: 'email',
+      notificationEmail: 'daming@example.com',
+    },
+  })
+
+  const customer2 = await prisma.customer.upsert({
+    where: { id: 2 },
+    update: {},
+    create: {
+      siteId: hsinchu!.id,
+      name: '小華工廠',
+      contactPerson: '林小華',
+      phone: '03-7654321',
+      address: '新竹市香山區中華路200號',
+      type: 'contracted',
+      tripFeeEnabled: true,
+      tripFeeType: 'per_month',
+      tripFeeAmount: 3000,
+      statementType: 'monthly',
+      paymentType: 'lump_sum',
+      invoiceRequired: false,
+      notificationMethod: 'email',
+      notificationEmail: 'xiaohua@example.com',
+    },
+  })
+
+  const customer3 = await prisma.customer.upsert({
+    where: { id: 3 },
+    update: {},
+    create: {
+      siteId: caotun!.id,
+      name: '王先生',
+      phone: '0912-345678',
+      type: 'temporary',
+      tripFeeEnabled: false,
+      statementType: 'per_trip',
+      paymentType: 'lump_sum',
+      invoiceRequired: false,
+      notificationMethod: 'email',
+    },
+  })
+
+  // 6. 測試合約 + 合約品項
+  const zongzhi = await prisma.item.findUnique({ where: { name: '總紙' } })
+  const zongtie = await prisma.item.findUnique({ where: { name: '總鐵' } })
+  const pet = await prisma.item.findUnique({ where: { name: 'PET' } })
+  const hongtongsao = await prisma.item.findUnique({ where: { name: '紅銅燒' } })
+
+  const contract1 = await prisma.contract.upsert({
+    where: { contractNumber: 'C-2026-001' },
+    update: {},
+    create: {
+      customerId: customer1.id,
+      contractNumber: 'C-2026-001',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      status: 'active',
+    },
+  })
+
+  // 大明企業合約品項：總紙(應付)、總鐵(應付)、PET(應收)
+  const contractItems1 = [
+    { contractId: contract1.id, itemId: zongzhi!.id, unitPrice: 3.5, billingDirection: 'payable' },
+    { contractId: contract1.id, itemId: zongtie!.id, unitPrice: 8.0, billingDirection: 'payable' },
+    { contractId: contract1.id, itemId: pet!.id, unitPrice: 2.0, billingDirection: 'receivable' },
+  ]
+  for (const ci of contractItems1) {
+    await prisma.contractItem.create({ data: ci })
+  }
+
+  const contract2 = await prisma.contract.upsert({
+    where: { contractNumber: 'C-2026-002' },
+    update: {},
+    create: {
+      customerId: customer2.id,
+      contractNumber: 'C-2026-002',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      status: 'active',
+    },
+  })
+
+  // 小華工廠合約品項：總鐵(應付)、紅銅燒(應付)
+  const contractItems2 = [
+    { contractId: contract2.id, itemId: zongtie!.id, unitPrice: 7.5, billingDirection: 'payable' },
+    { contractId: contract2.id, itemId: hongtongsao!.id, unitPrice: 150.0, billingDirection: 'payable' },
+  ]
+  for (const ci of contractItems2) {
+    await prisma.contractItem.create({ data: ci })
+  }
+
+  // 7. 測試附加費用
+  await prisma.customerFee.create({
+    data: {
+      customerId: customer1.id,
+      name: '處理費',
+      amount: 1000,
+      billingDirection: 'receivable',
+      frequency: 'monthly',
+    },
+  })
 
   console.log('種子資料建立完成')
 }
@@ -896,6 +1080,27 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
+### Task 20: 儀表板統計 API
+
+**Files:**
+- Create: `backend/src/routes/dashboard.ts`
+- Create: `backend/src/__tests__/dashboard.test.ts`
+
+端點：`GET /api/dashboard/stats`
+
+回傳彙總統計：
+- 本月車趟數
+- 本月應收總額 / 應付總額
+- 有效客戶數
+- 待審核明細數
+- 合約即將到期提醒（30/15/7 天內到期的合約清單）
+
+掛載到 `app.ts`: `app.use('/api/dashboard', authMiddleware, dashboardRoutes)`
+
+**Commit:** `feat: 實作儀表板統計 API`
+
+---
+
 ## Phase 3: 客戶與合約管理
 
 ### Task 9: 客戶 CRUD
@@ -1112,9 +1317,11 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 - Create: `backend/src/adapters/mock/mock-data-seeder.ts`
 
 產生模擬的 POS 收運紀錄和車機車趟紀錄：
-- 依據 seed 的站區、客戶、品項產生 3 個月的假資料
+- 依據 seed 的站區、客戶、合約品項產生 3 個月的假資料
 - 每天每個客戶 1-3 趟，每趟 2-5 個品項
-- 可透過 CLI 或 API 觸發
+- 觸發方式：
+  - CLI：`npm run seed:mock`（在 package.json 加入 script：`"seed:mock": "tsx src/adapters/mock/mock-data-seeder.ts"`）
+  - API：`POST /api/sync/mock/generate`（僅 mock 模式可用，加入 sync 路由）
 
 **Commit:** `feat: 實作 Mock 假資料產生器`
 
@@ -1138,6 +1345,16 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 名稱比對邏輯（依設計文件「外部系統資料對應策略」）：精確比對 name，失敗記 system_logs。
 
+**POS 同步定價策略：**
+- 簽約客戶：使用本系統合約價（忽略 POS 端 unit_price）
+- 臨時客戶：使用 POS 端 unit_price，billing_direction 預設 receivable
+
+**去重策略：**
+- POS 同步建立 trip + trip_items（source=pos_sync）
+- 車機同步時，用「客戶+日期+站區」比對已存在的 trip，匹配到則更新 driver/vehicle_plate
+- 車機同步未匹配到則建立新 trip（source=vehicle_sync），不含品項明細
+- 新增 `POST /api/sync/mock/generate` 端點觸發 Mock 假資料產生
+
 **Commit:** `feat: 實作外部系統同步 API + 名稱比對邏輯`
 
 ---
@@ -1152,7 +1369,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 注意：
 - GET 列表支援篩選：`?customerId=1&siteId=1&dateFrom=2026-01-01&dateTo=2026-01-31`
-- GET 詳情包含 `include: { items: { include: { item: true } }, customer: true }`
+- GET 詳情包含 `include: { items: { include: { item: true } }, customer: true, site: true }`
 - POST 建立時記錄 `source: 'manual'`
 
 **Commit:** `feat: 實作車趟 CRUD API + 測試`
@@ -1208,27 +1425,6 @@ async function createTripItem(tripId: number, itemId: number, quantity: number, 
 
 ---
 
-### Task 20: Excel 批次匯入
-
-**Files:**
-- Create: `backend/src/routes/import.ts`
-- Create: `backend/src/services/import.service.ts`
-- Create: `backend/src/__tests__/import.test.ts`
-
-匯入邏輯（依設計文件第 8 章）：
-1. 解析 Excel 欄位：收運日期、客戶名稱、司機、車牌、品項、數量、單位、單價、費用方向
-2. 同日期+同客戶+同司機+同車牌 → 歸為同一趟
-3. 簽約客戶：單價/方向留空 → 自動帶入合約價
-4. 建立 trips + trip_items，source = 'excel'
-5. 回傳成功/失敗筆數
-
-使用 `exceljs` 解析。需安裝 `multer` 處理檔案上傳：
-```bash
-npm install multer @types/multer
-```
-
-**Commit:** `feat: 實作 Excel 批次匯入車趟 + 品項`
-
 ---
 
 ## Phase 6: 計費引擎與月結
@@ -1271,14 +1467,26 @@ async function isHoliday(date: Date): Promise<boolean> {
 
 ```typescript
 interface BillingResult {
-  totalReceivable: number  // 應收合計
-  totalPayable: number     // 應付合計
-  netAmount: number        // 淨額
-  tripFeeTotal: number     // 車趟費
+  itemReceivable: number           // 品項應收小計
+  itemPayable: number              // 品項應付小計
+  tripFeeTotal: number             // 車趟費合計（固定應收）
+  additionalFeeReceivable: number  // 應收附加費用合計
+  additionalFeePayable: number     // 應付附加費用合計
+  totalReceivable: number          // 應收合計 = 品項應收 + 車趟費 + 應收附加費用
+  totalPayable: number             // 應付合計 = 品項應付 + 應付附加費用
+  netAmount: number                // 淨額 = 應收合計 - 應付合計
+  subtotal: number                 // 小計（淨額模式）
+  taxAmount: number                // 稅額（5%）
+  totalAmount: number              // 總額
+  // 分開開票（invoice_type=separate 時有值）
+  receivableSubtotal?: number
+  receivableTax?: number
+  receivableTotal?: number
+  payableSubtotal?: number
+  payableTax?: number
+  payableTotal?: number
+  // 明細
   additionalFees: { name: string; amount: number; direction: string }[]
-  subtotal: number
-  taxAmount: number
-  totalAmount: number
   details: {
     items: TripItemDetail[]
     tripFee: { count: number; amount: number; type: string }
@@ -1360,9 +1568,13 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 - `GET /api/statements/:id` — 詳情
 - `POST /api/statements/generate` — 手動觸發月結產出
 - `PATCH /api/statements/:id/review` — 審核（body: `{ action: 'approve' | 'reject' }`）
+- `PATCH /api/statements/:id/invoice` — 標記已開票
 - `POST /api/statements/:id/send` — 寄送
 
-狀態流轉：`draft → approved → sent` 或 `draft → rejected → (修正後) draft → approved`
+狀態流轉：
+- 需開票：`draft → approved → invoiced → sent`
+- 不需開票：`draft → approved → sent`
+- 退回：`approved → rejected → (修正後) draft → approved`
 
 **Commit:** `feat: 實作月結 API + 審核流程 + 測試`
 
@@ -1456,10 +1668,13 @@ npm install -D @types/react @types/react-dom
 建立基礎結構：
 - `src/api/client.ts` — Axios instance（自動帶 token）
 - `src/contexts/AuthContext.tsx` — 認證上下文
-- `src/components/AppLayout.tsx` — Ant Design 側邊欄佈局
+- `src/hooks/useResponsive.ts` — 響應式斷點 Hook（isMobile/isTablet/isDesktop）
+- `src/components/AppLayout.tsx` — Ant Design 響應式側邊欄佈局（桌面 Sider / 行動裝置 Drawer）
 - `src/App.tsx` — 路由設定
 
-**Commit:** `feat: 初始化前端專案（React + Ant Design + React Query）`
+注意：AppLayout 需實作 RWD 三段式斷點（≥1024 桌面、768-1023 平板、<768 手機），所有後續頁面 Task 都需配合 useResponsive 處理響應式佈局。
+
+**Commit:** `feat: 初始化前端專案（React + Ant Design + React Query + RWD 基礎）`
 
 ---
 
@@ -1519,21 +1734,33 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 36: 車趟管理 + Excel 匯入
+### Task 36: 車趟管理
 
 - `src/pages/TripsPage.tsx` — 車趟列表 + 品項明細展開
-- `src/pages/ImportPage.tsx` — Excel 上傳 + 預覽 + 匯入結果
 
-**Commit:** `feat: 實作車趟管理 + Excel 匯入頁面`
+**Commit:** `feat: 實作車趟管理頁面`
+
+---
+
+### Task 36.5: 外部系統同步頁面
+
+- `src/pages/SyncPage.tsx`
+- 手動觸發 POS/車機同步按鈕
+- 同步結果顯示（成功/失敗筆數）
+- Mock 假資料產生按鈕（僅 mock 模式顯示）
+- Adapter 連線模式狀態顯示
+
+**Commit:** `feat: 實作外部系統同步管理頁面`
 
 ---
 
 ### Task 37: 月結管理 + 審核
 
 - `src/pages/StatementsPage.tsx`
-- 依設計文件 UI：Tab 切換狀態（待審核/已審核/已寄送/退回）
+- 依設計文件 UI：Tab 切換狀態（待審核/已審核/已開票/已寄送/退回）
 - 審核詳情展開（品項明細 + 車趟費 + 附加費用 + 彙總）
 - 審核通過/退回按鈕
+- 標記已開票按鈕（僅已審核狀態可操作）
 - 全部審核通過按鈕
 
 **Commit:** `feat: 實作月結管理 + 審核流程頁面`
