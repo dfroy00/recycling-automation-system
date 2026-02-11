@@ -359,6 +359,8 @@ model Statement {
   reviewedAt            DateTime? @map("reviewed_at") /// 審核時間
   sentAt                DateTime? @map("sent_at") /// 寄送時間
   sentMethod            String?   @map("sent_method") /// email / line
+  sendRetryCount        Int       @default(0) @map("send_retry_count") /// 寄送重試次數（最大 3）
+  sendError             String?   @map("send_error") /// 最後一次寄送失敗原因
   createdAt             DateTime  @default(now()) @map("created_at") /// 建立時間
   updatedAt             DateTime  @updatedAt @map("updated_at") /// 更新時間
 
@@ -1536,17 +1538,59 @@ async function calculateTripBilling(tripId: number): Promise<BillingResult>
 4. 彙總：應收合計 / 應付合計 / 淨額
 5. 稅額：依 invoiceType (net/separate) 計算 5%
 
-**測試案例（至少 8 個）：**
-- 純應收客戶
-- 純應付客戶
-- 混合方向客戶
-- 有車趟費（按次）
-- 有車趟費（按月）
-- 有附加費用（按月+按趟混合）
-- 淨額開票 vs 分開開票
-- 無車趟的月份（金額為 0）
+**測試案例（至少 12 個，覆蓋設計文件第 6 章測試矩陣）：**
 
-**Commit:** `feat: 實作計費引擎（應收/應付/車趟費/附加費用/稅額）+ 測試`
+> ⚠️ 計費引擎是系統最高風險的核心模組，必須有完整測試覆蓋。
+
+基礎案例：
+1. 純應收客戶（全 receivable 品項 + 按次車趟費）→ 應付=0，淨額=應收合計
+2. 純應付客戶（全 payable 品項，無車趟費）→ 應收=0，淨額為負
+3. 混合方向客戶（receivable + payable + 按月車趟費 + monthly 附加費用）→ 正確分組加總
+4. 含免費品項（receivable + free）→ free 品項不計入金額
+
+車趟費與附加費用：
+5. 按次車趟費（5 趟 × 500 = 2500）
+6. 按月車趟費（固定 3000，不論趟數）
+7. 按趟附加費用（per_trip × 3 趟 = 金額 × 3）
+8. 月度+按趟附加費用混合（monthly + per_trip 各一）
+
+開票方式：
+9. 淨額開一張 → subtotal/taxAmount/totalAmount 正確
+10. 應收應付分開開票 → receivable_*/payable_* 各自正確
+
+邊界案例：
+11. 無車趟的月份 → 品項=0，車趟費=0，若有 monthly 附加費用仍計算
+12. Decimal 精度驗證 → 使用 Decimal.js 或 Prisma Decimal 避免浮點數問題
+13. 稅額四捨五入 → Math.round(小計 × 0.05)
+14. 大量品項（50+）→ 正確加總無精度累積誤差
+
+```typescript
+// 測試結構範例
+describe('BillingService', () => {
+  describe('calculateMonthlyBilling', () => {
+    it('純應收客戶：應付為 0，淨額等於應收合計', async () => { /* ... */ })
+    it('純應付客戶：應收為 0，淨額為負數', async () => { /* ... */ })
+    it('混合方向：正確分組加總品項、車趟費、附加費用', async () => { /* ... */ })
+    it('免費品項：不計入金額', async () => { /* ... */ })
+    it('按次車趟費：趟數 × 單次金額', async () => { /* ... */ })
+    it('按月車趟費：固定金額不論趟數', async () => { /* ... */ })
+    it('按趟附加費用：當月趟數 × 金額', async () => { /* ... */ })
+    it('混合附加費用：monthly 直接加 + per_trip 乘趟數', async () => { /* ... */ })
+    it('淨額開票：subtotal + tax(5%) = totalAmount', async () => { /* ... */ })
+    it('分開開票：receivable 和 payable 各自獨立計算稅額', async () => { /* ... */ })
+    it('無車趟月份：品項和車趟費為 0，僅 monthly 附加費用', async () => { /* ... */ })
+    it('Decimal 精度：0.1 + 0.2 不產生浮點數誤差', async () => { /* ... */ })
+    it('稅額四捨五入：Math.round(小計 × 0.05)', async () => { /* ... */ })
+    it('大量品項（50+）：正確加總', async () => { /* ... */ })
+  })
+  describe('calculateTripBilling', () => {
+    it('按趟明細：正確計算單趟金額', async () => { /* ... */ })
+    it('按趟明細含 per_trip 附加費用', async () => { /* ... */ })
+  })
+})
+```
+
+**Commit:** `feat: 實作計費引擎（應收/應付/車趟費/附加費用/稅額）+ 完整測試矩陣`
 
 ---
 
@@ -1558,7 +1602,11 @@ async function calculateTripBilling(tripId: number): Promise<BillingResult>
 
 ```typescript
 // 產出所有月結客戶的明細（每月 5 號呼叫）
-async function generateMonthlyStatements(yearMonth: string): Promise<{ created: number; errors: string[] }>
+async function generateMonthlyStatements(yearMonth: string): Promise<{
+  created: number    // 成功產出筆數
+  skipped: number    // 跳過筆數（已有明細或無車趟）
+  errors: { customerId: number; customerName: string; error: string }[]  // 失敗明細
+}>
 
 // 產出單一客戶月結
 async function generateCustomerStatement(customerId: number, yearMonth: string): Promise<Statement>
@@ -1569,7 +1617,22 @@ async function generateCustomerStatement(customerId: number, yearMonth: string):
 - 建立 Statement (draft)
 - detailJson 存完整明細
 
-**Commit:** `feat: 實作月結明細自動產出服務 + 測試`
+**錯誤處理（依設計文件第 8 章）：**
+- 逐一處理每個客戶，單一客戶失敗不影響其他客戶（try-catch 包裝）
+- 失敗原因記錄到 system_logs（event_type: 'statement_generate_error'）
+- 批次完成後，若有失敗，自動寄送錯誤報告 Email 給 ADMIN_EMAIL
+
+**防重複機制：**
+- 該客戶該月已有 draft/approved/invoiced/sent 的明細 → 跳過
+- 該客戶該月有 rejected 的明細 → 刪除 rejected 後重新產出
+
+**測試案例：**
+- 正常產出 3 個客戶的月結明細
+- 其中 1 個客戶資料異常 → 其餘 2 個仍成功產出，錯誤紀錄正確
+- 重複觸發 → 已有明細的客戶被跳過
+- 指定單一客戶產出
+
+**Commit:** `feat: 實作月結明細自動產出服務（含錯誤處理和防重複）+ 測試`
 
 ---
 
@@ -1685,6 +1748,82 @@ API：
 
 ---
 
+### Task 29.5: API 分頁與效能防護
+
+**Files:**
+- Create: `backend/src/middleware/pagination.ts`
+- Modify: 所有 GET 列表路由（sites, items, customers, contracts, trips, statements）
+
+**Step 1: 分頁中介層**
+
+```typescript
+// backend/src/middleware/pagination.ts
+import { Request } from 'express'
+
+export function parsePagination(req: Request) {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1)
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20))
+  const all = req.query.all === 'true'  // 下拉選單用，取消分頁
+  return { page, pageSize, skip: (page - 1) * pageSize, all }
+}
+
+export function paginationResponse(data: any[], total: number, page: number, pageSize: number) {
+  return {
+    data,
+    pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) }
+  }
+}
+```
+
+**Step 2: 更新所有 GET 列表路由加入分頁**
+
+**Step 3: 報表產出並發限制**
+
+- 使用簡易計數器限制同時產出報表的請求數量（最大 5 個）
+- 超過限制時回傳 `503 Service Unavailable: 報表產出繁忙，請稍後再試`
+
+**Step 4: 月結手動觸發非同步化**
+
+- `POST /api/statements/generate` 立即回傳 `202 Accepted`
+- 背景處理月結產出（不阻塞 API 回應）
+- 處理完成後記錄結果到 system_logs
+
+**Commit:** `feat: 實作 API 分頁、報表並發限制、月結非同步產出`
+
+---
+
+### Task 29.6: 資料備份設定
+
+**Files:**
+- Modify: `docker-compose.prod.yml`
+- Create: `scripts/backup.sh`
+- Create: `scripts/restore.sh`
+
+**Step 1: 新增備份容器到 docker-compose.prod.yml**
+
+新增 `db-backup` service，每日 02:00 自動執行 pg_dump，保留最近 30 天備份。
+
+**Step 2: 備份腳本**
+
+```bash
+# scripts/backup.sh — 手動備份
+#!/bin/bash
+docker exec db pg_dump -Fc -U postgres recycle_db > backups/backup_$(date +%Y%m%d_%H%M%S).dump
+echo "備份完成: backups/backup_$(date +%Y%m%d_%H%M%S).dump"
+```
+
+```bash
+# scripts/restore.sh — 還原
+#!/bin/bash
+if [ -z "$1" ]; then echo "用法: ./restore.sh <備份檔案路徑>"; exit 1; fi
+docker exec -i db pg_restore -U postgres -d recycle_db --clean < "$1"
+echo "還原完成: $1"
+```
+
+**Commit:** `feat: 新增 PostgreSQL 自動備份與還原腳本`
+
+---
+
 ## Phase 8: 前端
 
 ### Task 30: 前端專案初始化
@@ -1732,16 +1871,23 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 33: 基礎資料頁面（站區/品項/使用者/假日）
+### Task 33a: 基礎資料頁面 — 站區與品項管理
 
-- `src/pages/SitesPage.tsx`
-- `src/pages/ItemsPage.tsx`
-- `src/pages/UsersPage.tsx`
-- `src/pages/HolidaysPage.tsx`
+- `src/pages/SitesPage.tsx` — 站區 CRUD（Table + Modal）
+- `src/pages/ItemsPage.tsx` — 品項 CRUD（Table + Modal），支援分類篩選
 
-每頁標準 Ant Design Table + Modal CRUD。
+每頁標準 Ant Design Table + Modal CRUD，需配合 useResponsive 實作響應式佈局（桌面表格/手機卡片切換）。
 
-**Commit:** `feat: 實作基礎資料管理頁面（站區/品項/使用者/假日）`
+**Commit:** `feat: 實作站區與品項管理頁面`
+
+---
+
+### Task 33b: 基礎資料頁面 — 使用者與假日管理
+
+- `src/pages/UsersPage.tsx` — 使用者 CRUD（密碼欄位僅新增時必填）
+- `src/pages/HolidaysPage.tsx` — 假日管理（CRUD + 批次匯入功能）
+
+**Commit:** `feat: 實作使用者與假日管理頁面`
 
 ---
 
@@ -1785,16 +1931,30 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 37: 月結管理 + 審核
+### Task 37a: 月結管理 — 列表與手動觸發
 
 - `src/pages/StatementsPage.tsx`
 - 依設計文件 UI：Tab 切換狀態（待審核/已審核/已開票/已寄送/退回）
-- 審核詳情展開（品項明細 + 車趟費 + 附加費用 + 彙總）
-- 審核通過/退回按鈕
-- 標記已開票按鈕（僅已審核狀態可操作）
-- 全部審核通過按鈕
+- 月份選擇器、客戶篩選
+- 「重新產出」按鈕：觸發 `POST /api/statements/generate`（支援全部或指定客戶）
+- 列表顯示客戶名稱、站區、應收、應付、淨額、狀態
+- 響應式佈局（桌面表格/手機卡片切換）
 
-**Commit:** `feat: 實作月結管理 + 審核流程頁面`
+**Commit:** `feat: 實作月結管理列表頁（含手動觸發產出）`
+
+---
+
+### Task 37b: 月結管理 — 審核流程與明細展開
+
+- 審核詳情展開（品項明細 + 車趟費 + 附加費用 + 彙總金額）
+  - 桌面：expandedRowRender 行內展開
+  - 手機：點擊進入獨立全頁明細頁面
+- 審核通過/退回按鈕（含退回原因輸入）
+- 標記已開票按鈕（僅已審核狀態可操作）
+- 全部審核通過批次按鈕
+- 手動寄送按鈕
+
+**Commit:** `feat: 實作月結審核流程與明細展開`
 
 ---
 
@@ -1819,7 +1979,11 @@ npm install -D @types/react @types/react-dom
 4. 月結流程（8 項）
 5. 報表（3 項）
 6. 系統管理（5 項）
-7. 外部系統整合（8 項）
+7. 響應式設計 RWD（7 項）
+8. 外部系統整合（10 項）
+9. 錯誤處理與穩定性（8 項）
+10. 效能（4 項）
+11. 資料備份（3 項）
 
 修正任何發現的問題。
 
