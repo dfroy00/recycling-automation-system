@@ -1,0 +1,254 @@
+// backend/prisma/seed.ts
+import 'dotenv/config'
+import { PrismaClient } from '../src/generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import bcrypt from 'bcrypt'
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+const prisma = new PrismaClient({ adapter })
+
+async function main() {
+  // 1. 使用者
+  const passwordHash = await bcrypt.hash('admin123', 10)
+  await prisma.user.upsert({
+    where: { username: 'admin' },
+    update: {},
+    create: {
+      username: 'admin',
+      passwordHash,
+      name: '系統管理員',
+      email: 'admin@example.com',
+      role: 'admin',
+    },
+  })
+
+  // 2. 站區（7 個）
+  const siteNames = ['新竹站', '草屯站', '金馬站', '員林站', '斗六站', '和美站', '神岡站']
+  for (const name of siteNames) {
+    await prisma.site.upsert({
+      where: { name },
+      update: {},
+      create: { name, status: 'active' },
+    })
+  }
+
+  // 3. 品項（5 大分類，共 46 項）
+  const items = [
+    // 紙類
+    { name: '總紙', unit: 'kg', category: '紙類' },
+    { name: '報紙', unit: 'kg', category: '紙類' },
+    { name: '雜誌', unit: 'kg', category: '紙類' },
+    { name: '廣告紙', unit: 'kg', category: '紙類' },
+    { name: '紙袋', unit: 'kg', category: '紙類' },
+    // 鐵類
+    { name: '沖床鐵THS', unit: 'kg', category: '鐵類' },
+    { name: '特工鐵THF', unit: 'kg', category: '鐵類' },
+    { name: '鍛造鐵', unit: 'kg', category: '鐵類' },
+    { name: '西工鐵', unit: 'kg', category: '鐵類' },
+    { name: '總鐵', unit: 'kg', category: '鐵類' },
+    { name: '古物鐵', unit: 'kg', category: '鐵類' },
+    { name: '大鐵桶', unit: 'kg', category: '鐵類' },
+    { name: '鐵罐', unit: 'kg', category: '鐵類' },
+    { name: '鐵粉', unit: 'kg', category: '鐵類' },
+    { name: '中厚版', unit: 'kg', category: '鐵類' },
+    { name: '中古料', unit: 'kg', category: '鐵類' },
+    { name: '封閉式容器', unit: 'kg', category: '鐵類' },
+    // 五金類
+    { name: '青銅', unit: 'kg', category: '五金類' },
+    { name: '馬達', unit: 'kg', category: '五金類' },
+    { name: '熱水器', unit: 'kg', category: '五金類' },
+    { name: '紅銅燒', unit: 'kg', category: '五金類' },
+    { name: '紅銅割', unit: 'kg', category: '五金類' },
+    { name: '白鐵', unit: 'kg', category: '五金類' },
+    { name: '軟鋁(家庭仔)', unit: 'kg', category: '五金類' },
+    { name: '軟鋁(厚料)', unit: 'kg', category: '五金類' },
+    { name: '硬鋁', unit: 'kg', category: '五金類' },
+    { name: '電線', unit: 'kg', category: '五金類' },
+    { name: '鋁罐', unit: 'kg', category: '五金類' },
+    { name: '銅排', unit: 'kg', category: '五金類' },
+    { name: '鉛', unit: 'kg', category: '五金類' },
+    { name: '鋅', unit: 'kg', category: '五金類' },
+    // 塑膠類
+    { name: 'PET', unit: 'kg', category: '塑膠類' },
+    { name: 'HDPE', unit: 'kg', category: '塑膠類' },
+    { name: 'PVC', unit: 'kg', category: '塑膠類' },
+    { name: 'LDPE', unit: 'kg', category: '塑膠類' },
+    { name: 'PP', unit: 'kg', category: '塑膠類' },
+    { name: 'PS', unit: 'kg', category: '塑膠類' },
+    { name: '其他塑膠', unit: 'kg', category: '塑膠類' },
+    // 雜項
+    { name: '壓克力', unit: 'kg', category: '雜項' },
+    { name: '日光燈管', unit: 'kg', category: '雜項' },
+    { name: '電瓶', unit: 'kg', category: '雜項' },
+    { name: '乾電池', unit: 'kg', category: '雜項' },
+    { name: 'CD片', unit: 'kg', category: '雜項' },
+    { name: 'PP打包帶', unit: 'kg', category: '雜項' },
+    { name: '大青桶', unit: 'kg', category: '雜項' },
+    { name: '蘆筍籃', unit: 'kg', category: '雜項' },
+  ]
+  for (const item of items) {
+    await prisma.item.upsert({
+      where: { name: item.name },
+      update: {},
+      create: item,
+    })
+  }
+
+  // 4. 假日（2026 年台灣國定假日）
+  const holidays2026 = [
+    { date: '2026-01-01', name: '元旦' },
+    { date: '2026-01-29', name: '除夕' },
+    { date: '2026-01-30', name: '春節' },
+    { date: '2026-01-31', name: '春節' },
+    { date: '2026-02-01', name: '春節' },
+    { date: '2026-02-02', name: '春節' },
+    { date: '2026-02-28', name: '和平紀念日' },
+    { date: '2026-04-04', name: '兒童節' },
+    { date: '2026-04-05', name: '清明節' },
+    { date: '2026-05-01', name: '勞動節' },
+    { date: '2026-06-19', name: '端午節' },
+    { date: '2026-09-25', name: '中秋節' },
+    { date: '2026-10-10', name: '國慶日' },
+  ]
+  for (const h of holidays2026) {
+    await prisma.holiday.upsert({
+      where: { date: new Date(h.date) },
+      update: {},
+      create: { date: new Date(h.date), name: h.name, year: 2026 },
+    })
+  }
+
+  // 5. 測試客戶（簽約 + 臨時）
+  const hsinchu = await prisma.site.findUnique({ where: { name: '新竹站' } })
+  const caotun = await prisma.site.findUnique({ where: { name: '草屯站' } })
+
+  const customer1 = await prisma.customer.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      siteId: hsinchu!.id,
+      name: '大明企業',
+      contactPerson: '陳大明',
+      phone: '03-1234567',
+      address: '新竹市東區光復路100號',
+      type: 'contracted',
+      tripFeeEnabled: true,
+      tripFeeType: 'per_trip',
+      tripFeeAmount: 500,
+      statementType: 'monthly',
+      paymentType: 'lump_sum',
+      invoiceRequired: true,
+      invoiceType: 'net',
+      notificationMethod: 'email',
+      notificationEmail: 'daming@example.com',
+    },
+  })
+
+  const customer2 = await prisma.customer.upsert({
+    where: { id: 2 },
+    update: {},
+    create: {
+      siteId: hsinchu!.id,
+      name: '小華工廠',
+      contactPerson: '林小華',
+      phone: '03-7654321',
+      address: '新竹市香山區中華路200號',
+      type: 'contracted',
+      tripFeeEnabled: true,
+      tripFeeType: 'per_month',
+      tripFeeAmount: 3000,
+      statementType: 'monthly',
+      paymentType: 'lump_sum',
+      invoiceRequired: false,
+      notificationMethod: 'email',
+      notificationEmail: 'xiaohua@example.com',
+    },
+  })
+
+  await prisma.customer.upsert({
+    where: { id: 3 },
+    update: {},
+    create: {
+      siteId: caotun!.id,
+      name: '王先生',
+      phone: '0912-345678',
+      type: 'temporary',
+      tripFeeEnabled: false,
+      statementType: 'per_trip',
+      paymentType: 'lump_sum',
+      invoiceRequired: false,
+      notificationMethod: 'email',
+    },
+  })
+
+  // 6. 測試合約 + 合約品項
+  const zongzhi = await prisma.item.findUnique({ where: { name: '總紙' } })
+  const zongtie = await prisma.item.findUnique({ where: { name: '總鐵' } })
+  const pet = await prisma.item.findUnique({ where: { name: 'PET' } })
+  const hongtongsao = await prisma.item.findUnique({ where: { name: '紅銅燒' } })
+
+  // 清除舊的合約品項（避免重複 seed 時累積）
+  await prisma.contractItem.deleteMany({})
+
+  const contract1 = await prisma.contract.upsert({
+    where: { contractNumber: 'C-2026-001' },
+    update: {},
+    create: {
+      customerId: customer1.id,
+      contractNumber: 'C-2026-001',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      status: 'active',
+    },
+  })
+
+  // 大明企業合約品項：總紙(應付)、總鐵(應付)、PET(應收)
+  const contractItems1 = [
+    { contractId: contract1.id, itemId: zongzhi!.id, unitPrice: 3.5, billingDirection: 'payable' },
+    { contractId: contract1.id, itemId: zongtie!.id, unitPrice: 8.0, billingDirection: 'payable' },
+    { contractId: contract1.id, itemId: pet!.id, unitPrice: 2.0, billingDirection: 'receivable' },
+  ]
+  for (const ci of contractItems1) {
+    await prisma.contractItem.create({ data: ci })
+  }
+
+  const contract2 = await prisma.contract.upsert({
+    where: { contractNumber: 'C-2026-002' },
+    update: {},
+    create: {
+      customerId: customer2.id,
+      contractNumber: 'C-2026-002',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      status: 'active',
+    },
+  })
+
+  // 小華工廠合約品項：總鐵(應付)、紅銅燒(應付)
+  const contractItems2 = [
+    { contractId: contract2.id, itemId: zongtie!.id, unitPrice: 7.5, billingDirection: 'payable' },
+    { contractId: contract2.id, itemId: hongtongsao!.id, unitPrice: 150.0, billingDirection: 'payable' },
+  ]
+  for (const ci of contractItems2) {
+    await prisma.contractItem.create({ data: ci })
+  }
+
+  // 7. 測試附加費用
+  // 先清除舊資料避免重複
+  await prisma.customerFee.deleteMany({})
+  await prisma.customerFee.create({
+    data: {
+      customerId: customer1.id,
+      name: '處理費',
+      amount: 1000,
+      billingDirection: 'receivable',
+      frequency: 'monthly',
+    },
+  })
+
+  console.log('種子資料建立完成')
+}
+
+main()
+  .catch((e) => { console.error(e); process.exit(1) })
+  .finally(async () => { await prisma.$disconnect() })
