@@ -294,6 +294,7 @@ model Trip {
   customerId   Int      @map("customer_id") /// 客戶
   siteId       Int      @map("site_id") /// 站區
   tripDate     DateTime @map("trip_date") @db.Date /// 收運日期
+  tripTime     String?  @map("trip_time") /// 收運時間（如 08:30，用於同步去重比對，手動建立可為 null）
   driver       String?  /// 司機
   vehiclePlate String?  @map("vehicle_plate") /// 車牌
   source       String   @default("manual") /// 資料來源：manual / pos_sync / vehicle_sync
@@ -1133,7 +1134,10 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 - `PATCH /api/customers/:cid/fees/:fid` — 更新
 - `DELETE /api/customers/:cid/fees/:fid` — 刪除（軟刪除）
 
-驗證：`billingDirection` 必須是 `receivable` 或 `payable`，`frequency` 必須是 `monthly` 或 `per_trip`
+驗證：
+- `billingDirection` 必須是 `receivable` 或 `payable`
+- `frequency` 必須是 `monthly` 或 `per_trip`
+- **按趟結算客戶限制**：若客戶 `statementType=per_trip`，則 `frequency` 只允許 `per_trip`，不可選 `monthly`（避免月度費用無處歸屬）。UI 需鎖定此選項
 
 **Commit:** `feat: 實作客戶附加費用 CRUD API + 測試`
 
@@ -1245,6 +1249,14 @@ export interface DispatchData {
 // backend/src/adapters/pos.adapter.ts
 import { PosCollectionRecord, CustomerSyncData, ContractPriceSyncData } from './types'
 
+// 健康檢查介面（IPosAdapter 和 IVehicleAdapter 皆須實作）
+export interface AdapterHealthCheckResult {
+  status: 'ok' | 'error'        // 連線狀態
+  mode: 'mock' | 'real'         // 當前模式
+  message?: string              // 錯誤訊息（僅 error 時）
+  lastSyncAt?: Date             // 上次成功同步時間
+}
+
 export interface IPosAdapter {
   getCollectionRecords(params: {
     siteId?: number
@@ -1256,6 +1268,7 @@ export interface IPosAdapter {
   getLatestRecords(since: Date): Promise<PosCollectionRecord[]>
   syncCustomer(customer: CustomerSyncData): Promise<void>
   syncContractPrices(contractItems: ContractPriceSyncData[]): Promise<void>
+  healthCheck(): Promise<AdapterHealthCheckResult>
 }
 ```
 
@@ -1273,6 +1286,7 @@ export interface IVehicleAdapter {
   getVehicleStatus(): Promise<VehicleStatus[]>
   syncCustomer(customer: CustomerSyncData): Promise<void>
   dispatchTrip(dispatch: DispatchData): Promise<void>
+  healthCheck(): Promise<AdapterHealthCheckResult>
 }
 ```
 
@@ -1349,10 +1363,16 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 - 簽約客戶：使用本系統合約價（忽略 POS 端 unit_price）
 - 臨時客戶：使用 POS 端 unit_price，billing_direction 預設 receivable
 
-**去重策略：**
+**去重策略（依設計文件去重比對鍵優先順序）：**
 - POS 同步建立 trip + trip_items（source=pos_sync）
-- 車機同步時，用「客戶+日期+站區」比對已存在的 trip，匹配到則更新 driver/vehicle_plate
-- 車機同步未匹配到則建立新 trip（source=vehicle_sync），不含品項明細
+- 車機同步時，依以下優先順序比對：
+  1. **`external_id` 精確比對**（最可靠，同來源系統的唯一識別）
+  2. 同一客戶 + 同一日期 + 同一站區 + **時間區間（±30分鐘）**模糊比對
+- 匹配到已存在的 trip → 補充 driver + vehicle_plate，不建立新 trip
+- 車機同步未匹配到則建立新 trip（source=vehicle_sync），不含品項明細，需人工補充
+- 同一客戶同一天同一站區可能有多趟收運，**必須搭配 trip_time 區分**，純「客戶+日期+站區」不足以唯一識別
+- 每筆同步紀錄的 `external_id` 必須記錄，供後續追溯和去重
+- 同步順序建議：先 POS → 再車機
 - 新增 `POST /api/sync/mock/generate` 端點觸發 Mock 假資料產生
 
 **Commit:** `feat: 實作外部系統同步 API + 名稱比對邏輯`
@@ -1403,9 +1423,20 @@ async function createTripItem(tripId: number, itemId: number, quantity: number, 
       .flatMap(c => c.items)
       .find(ci => ci.itemId === itemId)
 
-    if (!contractItem) throw new Error('合約中無此品項')
-    unitPrice = Number(contractItem.unitPrice)
-    billingDirection = contractItem.billingDirection
+    if (contractItem) {
+      // 有合約品項：自動帶入合約價
+      unitPrice = Number(contractItem.unitPrice)
+      billingDirection = contractItem.billingDirection
+    } else {
+      // 合約到期或合約中無此品項：降級為手動輸入模式（等同臨時客戶）
+      // UI 提示：「此客戶目前無有效合約（或合約中無此品項），請手動輸入單價和費用方向」
+      // 不阻止建立車趟品項，確保業務不中斷
+      if (manualPrice === undefined || !manualDirection) {
+        throw new Error('此客戶目前無有效合約或合約中無此品項，請手動輸入單價和費用方向')
+      }
+      unitPrice = manualPrice
+      billingDirection = manualDirection
+    }
   } else {
     // 臨時客戶：手動輸入
     if (manualPrice === undefined || !manualDirection) throw new Error('臨時客戶須手動輸入單價和方向')
@@ -1597,7 +1628,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 - 彙總（應收/應付/淨額/稅額/總額）
 - 匯款帳戶
 
-端點：`GET /api/reports/customer/:id?yearMonth=2026-01` → 回傳 PDF buffer
+端點：`GET /api/reports/customers/:customerId?yearMonth=2026-01` → 回傳 PDF buffer
 
 **Commit:** `feat: 實作客戶月結明細 PDF 產出`
 
@@ -1612,7 +1643,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 - 工作表一：客戶總額（客戶名稱、類型、應收、應付、車趟費、附加費用、淨額、稅額、總額）
 - 工作表二：品項彙總（品項、單位、總數量、應收金額、應付金額、淨額）
 
-端點：`GET /api/reports/site/:id?yearMonth=2026-01` → 回傳 Excel buffer
+端點：`GET /api/reports/sites/:siteId?yearMonth=2026-01` → 回傳 Excel buffer
 
 **Commit:** `feat: 實作站區彙總報表 Excel 產出`
 
@@ -1672,7 +1703,7 @@ npm install -D @types/react @types/react-dom
 - `src/components/AppLayout.tsx` — Ant Design 響應式側邊欄佈局（桌面 Sider / 行動裝置 Drawer）
 - `src/App.tsx` — 路由設定
 
-注意：AppLayout 需實作 RWD 三段式斷點（≥1024 桌面、768-1023 平板、<768 手機），所有後續頁面 Task 都需配合 useResponsive 處理響應式佈局。
+注意：AppLayout 需實作 RWD 三段式斷點（≥992px 桌面、768~991px 平板、<768px 手機），依設計文件使用 Ant Design 標準斷點（lg/md），所有後續頁面 Task 都需配合 useResponsive 處理響應式佈局。
 
 **Commit:** `feat: 初始化前端專案（React + Ant Design + React Query + RWD 基礎）`
 
