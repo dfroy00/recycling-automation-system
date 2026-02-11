@@ -1377,7 +1377,18 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 - 同步順序建議：先 POS → 再車機
 - 新增 `POST /api/sync/mock/generate` 端點觸發 Mock 假資料產生
 
-**Commit:** `feat: 實作外部系統同步 API + 名稱比對邏輯`
+**同步鎖定機制（防止並發同步）：**
+- 同步 API（pull/push）執行前，檢查 system_logs 是否有進行中的同步任務
+- 若有進行中的同步，回傳 `409 Conflict`：「同步進行中，請稍後再試」
+- 同步開始時寫入 system_log（event_type='sync_start'），結束時寫入（event_type='sync_end'）
+- 同步超過 5 分鐘未完成視為逾時，自動解鎖（查詢時檢查 created_at）
+
+**同步衝突處理規則：**
+- 手動建立的 trip，POS 同步匹配到 → 不建立新 trip，記錄 system_log「疑似重複」，由人工確認
+- POS 同步建立的 trip，使用者手動修改品項 → 允許修改，source 保持 pos_sync，trip_items 以人工修改為準
+- 同步進行中又手動操作 → 由鎖定機制防止
+
+**Commit:** `feat: 實作外部系統同步 API + 名稱比對邏輯 + 同步鎖定`
 
 ---
 
@@ -1679,6 +1690,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 ### Task 26: PDF 報表產出
 
 **Files:**
+- Create: `backend/src/routes/reports.ts`
 - Create: `backend/src/services/pdf-generator.ts`
 - Create: `backend/src/__tests__/pdf-generator.test.ts`
 
@@ -1739,6 +1751,10 @@ LINE 介面預留但不實作。
 - 每日 09:00 → 檢查寄送日 + 自動寄送
 - 每日 09:00 → 通知重試
 - 每日 10:00 → 合約到期掃描
+
+**Adapter 健康檢查（排程前置）：**
+- 涉及外部系統的排程（如同步相關）執行前，先呼叫 `adapter.healthCheck()` 確認連線狀態
+- 健康檢查失敗時跳過該排程，記錄 system_log 並通知管理員
 
 API：
 - `GET /api/schedule` — 排程狀態
@@ -1802,6 +1818,7 @@ export function paginationResponse(data: any[], total: number, page: number, pag
 **Step 1: 新增備份容器到 docker-compose.prod.yml**
 
 新增 `db-backup` service，每日 02:00 自動執行 pg_dump，保留最近 30 天備份。
+每月 4 號額外執行一次備份（月結產出前的安全備份）。
 
 **Step 2: 備份腳本**
 
@@ -1961,7 +1978,7 @@ npm install -D @types/react @types/react-dom
 ### Task 38: 報表 + 排程管理
 
 - `src/pages/ReportsPage.tsx` — PDF 下載 + Excel 下載
-- `src/pages/SchedulePage.tsx` — 排程狀態 + 手動觸發
+- `src/pages/SchedulePage.tsx` — 排程狀態 + 手動觸發 + 寄送失敗紀錄顯示（篩選 send_retry_count >= 3 的 statements，提供手動重新寄送按鈕）
 
 **Commit:** `feat: 實作報表下載 + 排程管理頁面`
 
@@ -1976,11 +1993,11 @@ npm install -D @types/react @types/react-dom
 1. 基礎資料 CRUD（6 項）
 2. 合約與計費（3 項）
 3. 車趟與品項（5 項）
-4. 月結流程（8 項）
+4. 月結流程（9 項）
 5. 報表（3 項）
 6. 系統管理（5 項）
 7. 響應式設計 RWD（7 項）
-8. 外部系統整合（10 項）
+8. 外部系統整合（11 項）
 9. 錯誤處理與穩定性（8 項）
 10. 效能（4 項）
 11. 資料備份（3 項）

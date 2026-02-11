@@ -495,6 +495,7 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 7. 車趟紀錄建立（手動 CRUD / POS 同步 / 車機同步）
 8. 車趟品項明細（簽約客戶自動帶入合約價快照，臨時客戶手動輸入）
 9. 車趟/品項資料修正
+10. 合約到期客戶（無有效合約）改為手動輸入模式，不阻止建立車趟
 
 ### 月結與發票
 11. 每月 5 號自動產出全部月結客戶明細（草稿狀態）
@@ -608,14 +609,14 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 | phone | String? | 電話 |
 | address | String? | 地址 |
 | type | Enum | contracted（簽約）/ temporary（臨時） |
-| trip_fee_enabled | Boolean | 是否收車趟費 |
+| trip_fee_enabled | Boolean | 是否收車趟費（預設 false） |
 | trip_fee_type | Enum? | per_trip（按次）/ per_month（按月） |
 | trip_fee_amount | Decimal? | 車趟費金額 |
 | statement_type | Enum | monthly（整月一份明細）/ per_trip（每趟一份明細） |
 | payment_type | Enum | lump_sum（一次付清）/ per_trip（按趟分次付款） |
 | statement_send_day | Int? | 明細寄送日（每月幾號，預設 15） |
 | payment_due_day | Int? | 付款到期日（每月幾號，預設 15） |
-| invoice_required | Boolean | 是否需要開立發票（明細一律產出） |
+| invoice_required | Boolean | 是否需要開立發票（預設 false，明細一律產出） |
 | invoice_type | Enum? | net（淨額開一張，預設）/ separate（應收應付分開），僅 invoice_required=true 時有效 |
 | notification_method | Enum | email / line / both |
 | notification_email | String? | 通知 Email |
@@ -650,7 +651,7 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 | contract_number | String (unique) | 合約編號 |
 | start_date | Date | 合約起始日 |
 | end_date | Date | 合約到期日 |
-| status | Enum | draft / active / expired / terminated |
+| status | Enum | draft / active / expired / terminated（預設 draft） |
 | notes | String? | 備註 |
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
@@ -731,7 +732,7 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 | payable_subtotal | Decimal? | 分開開票：應付小計 |
 | payable_tax | Decimal? | 分開開票：應付稅額 |
 | payable_total | Decimal? | 分開開票：應付總額 |
-| detail_json | JSON | 完整明細（品項、車趟費、附加費用等） |
+| detail_json | JSON? | 完整明細（品項、車趟費、附加費用等，草稿階段可為 null） |
 | status | Enum | draft / approved / rejected / invoiced / sent |
 | reviewed_by | Int? (FK → users) | 審核人 |
 | reviewed_at | DateTime? | 審核時間 |
@@ -742,7 +743,7 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 | created_at | DateTime | 建立時間 |
 | updated_at | DateTime | 更新時間 |
 
-> **狀態流轉**：需開票客戶 `draft → approved → invoiced → sent`，不需開票客戶 `draft → approved → sent`（跳過 invoiced）。退回流程：`draft → rejected → draft → approved`。
+> **狀態流轉**：需開票客戶 `draft → approved → invoiced → sent`，不需開票客戶 `draft → approved → sent`（跳過 invoiced）。退回流程：`approved → rejected → draft（修正後重新提交）→ approved`。寄送失敗超過重試上限：`sent` 狀態不變，以 `send_retry_count >= 3` 且 `send_error IS NOT NULL` 判斷寄送失敗，可在排程管理頁面查看並手動重新寄送。
 >
 > **分開開票**：當客戶 `invoice_type=separate` 時，`receivable_*` 和 `payable_*` 欄位會有值，分別記錄應收端和應付端的小計/稅額/總額。`subtotal`/`tax_amount`/`total_amount` 在此模式下存淨額端的值。
 
@@ -813,7 +814,7 @@ POS 和車機系統可能對同一趟收運各有一筆紀錄，同步時需避�
 | trip_time | String? | 出車時間（如 08:30） |
 | driver | String | 司機姓名 |
 | vehicle_plate | String | 車牌號碼 |
-| status | String | 車趟狀態（pending / in_progress / completed） |
+| status | String | 車趟狀態（pending / in_progress / completed，預設 completed） |
 | imported | Boolean | 是否已匯入本系統（預設 false） |
 | created_at | DateTime | 建立時間 |
 
@@ -1042,11 +1043,11 @@ getWorkday(targetDate):
 ├─ 重試間隔：每日 09:00 排程檢查（非即時重試）
 ├─ 重試紀錄：每次重試記錄到 system_logs
 │
-├─ 超過上限處理：
-│   ├─ 標記該筆通知為 failed（不再自動重試）
+├─ 超過上限處理（send_retry_count >= 3 且 send_error IS NOT NULL）：
+│   ├─ sent 狀態不變，不再自動重試
 │   ├─ 寄送失敗報告給管理員（ADMIN_EMAIL）
-│   ├─ 管理員可在「排程管理」頁面看到失敗紀錄
-│   └─ 修正問題後可手動觸發重新寄送（POST /api/statements/:id/send）
+│   ├─ 管理員可在「排程管理」頁面看到失敗紀錄（篩選 send_retry_count >= 3）
+│   └─ 修正問題後可手動觸發重新寄送（POST /api/statements/:id/send，會重設 send_retry_count）
 │
 └─ 常見失敗原因：
     ├─ 客戶 Email 格式錯誤 → 通知管理員修正客戶資料
@@ -1153,6 +1154,28 @@ db-backup:
 # 還原到特定時間點
 docker exec -i db pg_restore -d recycle_db < backups/backup_20260205_020000.dump
 ```
+
+### 環境變數參考
+
+| 變數名稱 | 用途 | 預設值 / 範例 |
+|---------|------|-------------|
+| `PORT` | 後端伺服器埠號 | `3000` |
+| `DATABASE_URL` | PostgreSQL 連線字串 | `postgresql://postgres:password@localhost:5432/recycle_db` |
+| `JWT_SECRET` | JWT 簽名密鑰 | （必填，無預設） |
+| `CORS_ORIGIN` | 前端 CORS 來源 | `http://localhost:5173` |
+| `ADAPTER_MODE` | Adapter 模式切換 | `mock`（可選 `mock` / `real`） |
+| `POS_API_URL` | 真實 POS API 位址（real 模式用） | `https://pos.example.com/api` |
+| `POS_API_KEY` | POS API 金鑰（real 模式用） | （real 模式必填） |
+| `VEHICLE_API_URL` | 真實車機 API 位址（real 模式用） | `https://vehicle.example.com/api` |
+| `VEHICLE_API_KEY` | 車機 API 金鑰（real 模式用） | （real 模式必填） |
+| `SMTP_HOST` | Email SMTP 主機 | `smtp.gmail.com` |
+| `SMTP_PORT` | Email SMTP 埠號 | `587` |
+| `SMTP_USER` | Email SMTP 帳號 | （必填） |
+| `SMTP_PASS` | Email SMTP 密碼 | （必填） |
+| `ADMIN_EMAIL` | 管理員通知信箱 | （必填） |
+| `POSTGRES_USER` | PostgreSQL 使用者（Docker 用） | `postgres` |
+| `POSTGRES_PASSWORD` | PostgreSQL 密碼（Docker 用） | （必填） |
+| `POSTGRES_DB` | PostgreSQL 資料庫名稱（Docker 用） | `recycle_db` |
 
 ---
 
@@ -1570,8 +1593,15 @@ export function useResponsive() {
 | `backend/src/services/scheduler.service.ts` | 排程服務 |
 | `backend/src/services/holiday.service.ts` | 假日判斷 |
 | `backend/src/services/sync.service.ts` | 外部系統同步服務（呼叫 Adapter 進行資料同步） |
+| `backend/src/services/excel-report.service.ts` | Excel 站區彙總報表產出 |
 | **Middleware** | |
 | `backend/src/middleware/auth.ts` | JWT 驗證中介層 |
+| `backend/src/middleware/pagination.ts` | 分頁解析中介層（預設 pageSize=20，最大 100） |
+| **Scripts** | |
+| `scripts/backup.sh` | 手動備份腳本 |
+| `scripts/restore.sh` | 手動還原腳本 |
+| **Config** | |
+| `backend/jest.config.ts` | Jest 測試設定 |
 
 ### 前端
 
@@ -1641,6 +1671,7 @@ export function useResponsive() {
 | 同步 | /api/sync/vehicle/dispatch | POST | 發送派車指令到車機 |
 | 同步 | /api/sync/vehicle/status | GET | 取得車輛即時狀態 |
 | 同步 | /api/sync/status | GET | 查看各 Adapter 的連線模式和狀態 |
+| 同步 | /api/sync/mock/generate | POST | 觸發 Mock 假資料產生（僅開發模式） |
 
 ---
 
@@ -1664,6 +1695,7 @@ export function useResponsive() {
 - [ ] 簽約客戶建立車趟品項時，自動帶入合約價格和方向快照
 - [ ] 臨時客戶建立車趟品項時，可手動輸入報價和方向
 - [ ] 車趟紀錄正確記錄資料來源（manual / pos_sync / vehicle_sync）
+- [ ] 合約到期客戶（無有效合約）自動切換為手動輸入模式，UI 提示「無有效合約」
 
 ### 月結流程
 - [ ] 計費引擎正確計算應收/應付/車趟費/附加費用/淨額/小計/稅額(5%)/總額
@@ -1708,6 +1740,7 @@ export function useResponsive() {
 - [ ] Adapter 健康檢查（healthCheck）正確回報連線狀態
 - [ ] 同步排程執行前自動檢查 Adapter 狀態，連線失敗時跳過並通知
 - [ ] Adapter 狀態查詢 API 正確顯示當前模式和連線狀態
+- [ ] POS 同步定價策略正確（簽約客戶使用合約價、臨時客戶使用 POS 端 unit_price）
 
 ### 錯誤處理與穩定性
 - [ ] 月結批次產出部分客戶失敗時，不影響其他客戶，失敗筆數和原因記錄到 system_logs
