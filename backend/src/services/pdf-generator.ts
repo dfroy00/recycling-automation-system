@@ -1,5 +1,6 @@
 // backend/src/services/pdf-generator.ts
 import PDFDocument from 'pdfkit'
+import path from 'path'
 import prisma from '../lib/prisma'
 import { calculateMonthlyBilling, BillingResult } from './billing.service'
 
@@ -59,6 +60,11 @@ function buildPDF(customer: any, yearMonth: string, billing: BillingResult): Pro
       doc.on('data', (chunk: Buffer) => chunks.push(chunk))
       doc.on('end', () => resolve(Buffer.concat(chunks)))
       doc.on('error', reject)
+
+      // 註冊中文字型，避免 CJK 字元亂碼
+      const fontPath = path.join(__dirname, '../../assets/fonts/NotoSansTC-Regular.ttf')
+      doc.registerFont('NotoSansTC', fontPath)
+      doc.font('NotoSansTC')
 
       // 公司標頭
       doc.fontSize(18).text('資源回收管理系統', { align: 'center' })
