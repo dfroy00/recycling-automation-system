@@ -75,12 +75,14 @@ services:
       - backend
     environment:
       VITE_API_URL: /api
+      VITE_PROXY_TARGET: http://backend:3000
     ports:
       - "5173:5173"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
       - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
     command: npx vite --host 0.0.0.0
 
 volumes:

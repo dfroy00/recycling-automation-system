@@ -23,16 +23,39 @@ async function main() {
   })
 
   // 2. 站區（7 個）
-  const siteNames = ['新竹站', '草屯站', '金馬站', '員林站', '斗六站', '和美站', '神岡站']
-  for (const name of siteNames) {
+  const sites = [
+    { name: '新竹站', address: '新竹縣竹北市東興路一段123號', phone: '03 668 4776' },
+    { name: '草屯站', address: '南投縣草屯鎮草溪路845之1號', phone: '(049)2381-622' },
+    { name: '金馬站', address: '彰化市金馬路三段臨488號', phone: '(04)751-6789' },
+    { name: '員林站', address: '彰化縣員林市中山路一段190號', phone: '(04)8383-213' },
+    { name: '斗六站', address: '雲林縣斗六市保長路41號', phone: '(05)537-0799' },
+    { name: '和美站', address: '彰化縣和美鎮彰和路三段592號', phone: '(04)7562-506' },
+    { name: '神岡站', address: '台中市神岡區神林路91-6號', phone: '(04)2567-5299' },
+  ]
+  for (const site of sites) {
     await prisma.site.upsert({
-      where: { name },
-      update: {},
-      create: { name, status: 'active' },
+      where: { name: site.name },
+      update: { address: site.address, phone: site.phone },
+      create: { ...site, status: 'active' },
     })
   }
 
-  // 3. 品項（5 大分類，共 46 項）
+  // 3. 行號（4 個）
+  const businessEntities = [
+    { name: '和東', taxId: '12345601', bizItems: '廢棄物回收、資源再利用' },
+    { name: '河北', taxId: '12345602', bizItems: '廢鐵回收、五金買賣' },
+    { name: '和南', taxId: '12345603', bizItems: '廢塑膠回收、再生料加工' },
+    { name: '和西', taxId: '12345604', bizItems: '廢紙回收、紙類加工' },
+  ]
+  for (const entity of businessEntities) {
+    await prisma.businessEntity.upsert({
+      where: { name: entity.name },
+      update: { taxId: entity.taxId, bizItems: entity.bizItems },
+      create: { ...entity, status: 'active' },
+    })
+  }
+
+  // 4. 品項（5 大分類，共 46 項）
   const items = [
     // 紙類
     { name: '總紙', unit: 'kg', category: '紙類' },
