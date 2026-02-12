@@ -14,14 +14,14 @@ const { Title } = Typography
 export default function HolidaysPage() {
   const { isMobile } = useResponsive()
   const currentYear = dayjs().year()
-  const [page, setPage] = useState(1)
   const [yearFilter, setYearFilter] = useState<number>(currentYear)
   const [modalOpen, setModalOpen] = useState(false)
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importJson, setImportJson] = useState('')
   const [form] = Form.useForm<HolidayFormData>()
 
-  const { data, isLoading } = useHolidays({ page, pageSize: 20, year: yearFilter })
+  // 後端回傳純陣列，無分頁
+  const { data, isLoading } = useHolidays({ year: yearFilter })
   const createHoliday = useCreateHoliday()
   const deleteHoliday = useDeleteHoliday()
   const importHolidays = useImportHolidays()
@@ -98,7 +98,7 @@ export default function HolidaysPage() {
       <div style={{ marginBottom: 16 }}>
         <Select
           value={yearFilter}
-          onChange={(val) => { setYearFilter(val); setPage(1) }}
+          onChange={(val) => setYearFilter(val)}
           options={yearOptions}
           style={{ width: 120 }}
         />
@@ -108,13 +108,8 @@ export default function HolidaysPage() {
       {isMobile ? (
         <List
           loading={isLoading}
-          dataSource={data?.data ?? []}
-          pagination={{
-            current: page,
-            pageSize: 20,
-            total: data?.pagination?.total ?? 0,
-            onChange: setPage,
-          }}
+          dataSource={data ?? []}
+          pagination={{ pageSize: 20 }}
           renderItem={(holiday: Holiday) => (
             <Card
               size="small"
@@ -135,15 +130,10 @@ export default function HolidaysPage() {
       ) : (
         <Table
           columns={columns}
-          dataSource={data?.data ?? []}
+          dataSource={data ?? []}
           rowKey="id"
           loading={isLoading}
-          pagination={{
-            current: page,
-            pageSize: 20,
-            total: data?.pagination?.total ?? 0,
-            onChange: setPage,
-          }}
+          pagination={{ pageSize: 20 }}
         />
       )}
 

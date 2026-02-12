@@ -171,11 +171,12 @@ export function useDeleteItem() {
 
 // ==================== 使用者 ====================
 
-export function useUsers(params?: { page?: number; pageSize?: number }) {
-  return useQuery<PaginatedResponse<User>>({
-    queryKey: ['users', params],
+// 後端 GET /users 回傳純陣列，不支援分頁
+export function useUsers() {
+  return useQuery<User[]>({
+    queryKey: ['users'],
     queryFn: async () => {
-      const { data } = await apiClient.get('/users', { params })
+      const { data } = await apiClient.get('/users')
       return data
     },
   })
@@ -233,8 +234,9 @@ export function useDeleteUser() {
 
 // ==================== 假日 ====================
 
-export function useHolidays(params?: { page?: number; pageSize?: number; year?: number }) {
-  return useQuery<PaginatedResponse<Holiday>>({
+// 後端 GET /holidays 回傳純陣列，不支援分頁
+export function useHolidays(params?: { year?: number }) {
+  return useQuery<Holiday[]>({
     queryKey: ['holidays', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/holidays', { params })

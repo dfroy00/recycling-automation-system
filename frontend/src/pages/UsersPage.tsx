@@ -12,12 +12,12 @@ const { Title } = Typography
 
 export default function UsersPage() {
   const { isMobile } = useResponsive()
-  const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [form] = Form.useForm<UserFormData>()
 
-  const { data, isLoading } = useUsers({ page, pageSize: 20 })
+  // 後端回傳純陣列，無分頁
+  const { data, isLoading } = useUsers()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deleteUser = useDeleteUser()
@@ -107,13 +107,8 @@ export default function UsersPage() {
       {isMobile ? (
         <List
           loading={isLoading}
-          dataSource={data?.data ?? []}
-          pagination={{
-            current: page,
-            pageSize: 20,
-            total: data?.pagination?.total ?? 0,
-            onChange: setPage,
-          }}
+          dataSource={data ?? []}
+          pagination={{ pageSize: 20 }}
           renderItem={(user: User) => (
             <Card
               size="small"
@@ -141,15 +136,10 @@ export default function UsersPage() {
       ) : (
         <Table
           columns={columns}
-          dataSource={data?.data ?? []}
+          dataSource={data ?? []}
           rowKey="id"
           loading={isLoading}
-          pagination={{
-            current: page,
-            pageSize: 20,
-            total: data?.pagination?.total ?? 0,
-            onChange: setPage,
-          }}
+          pagination={{ pageSize: 20 }}
         />
       )}
 
