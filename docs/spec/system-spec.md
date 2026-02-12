@@ -2,7 +2,7 @@
 
 > **版本**：1.0
 > **日期**：2026-02-12
-> **用途**：提供完整的系統規格，供開發者依照 SDD（Subagent-Driven Development）流程從零實作
+> **用途**：提供完整的系統規格，供開發者依照 Spec-Driven Development 流程從零實作
 
 ---
 
