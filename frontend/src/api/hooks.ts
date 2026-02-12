@@ -19,6 +19,17 @@ import type {
   ScheduleJob,
 } from '../types'
 
+// 輔助：將後端 all=true 回傳的純陣列統一轉為 PaginatedResponse 格式
+function normalizePaginatedResponse<T>(data: T[] | PaginatedResponse<T>): PaginatedResponse<T> {
+  if (Array.isArray(data)) {
+    return {
+      data,
+      pagination: { page: 1, pageSize: data.length, total: data.length, totalPages: 1 },
+    }
+  }
+  return data
+}
+
 // ==================== 儀表板 ====================
 
 export function useDashboardStats() {
@@ -39,7 +50,7 @@ export function useSites(params?: { page?: number; pageSize?: number; all?: bool
     queryKey: ['sites', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/sites', { params })
-      return data
+      return normalizePaginatedResponse<Site>(data)
     },
     staleTime: 5 * 60 * 1000, // 5 分鐘快取（站區不常變動）
   })
@@ -102,7 +113,7 @@ export function useItems(params?: { page?: number; pageSize?: number; category?:
     queryKey: ['items', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/items', { params })
-      return data
+      return normalizePaginatedResponse<Item>(data)
     },
     staleTime: 5 * 60 * 1000, // 5 分鐘快取（品項不常變動）
   })
@@ -289,7 +300,7 @@ export function useCustomers(params?: { page?: number; pageSize?: number; siteId
     queryKey: ['customers', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/customers', { params })
-      return data
+      return normalizePaginatedResponse<Customer>(data)
     },
   })
 }
@@ -425,7 +436,7 @@ export function useContracts(params?: { page?: number; pageSize?: number; custom
     queryKey: ['contracts', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/contracts', { params })
-      return data
+      return normalizePaginatedResponse<Contract>(data)
     },
   })
 }
@@ -554,7 +565,7 @@ export function useTrips(params?: {
     queryKey: ['trips', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/trips', { params })
-      return data
+      return normalizePaginatedResponse<Trip>(data)
     },
   })
 }
