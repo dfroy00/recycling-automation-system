@@ -8,11 +8,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   // 載入中顯示 loading
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Spin size="large" tip="載入中..." />
-      </div>
-    )
+    return <Spin size="large" fullscreen />
   }
 
   // 未認證導向登入頁

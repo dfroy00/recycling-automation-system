@@ -252,9 +252,8 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
         onCancel={() => { setModalOpen(false); setEditingTrip(null); form.resetFields() }}
         confirmLoading={createTrip.isPending || updateTrip.isPending}
         width={isMobile ? '95%' : 560}
-        destroyOnClose
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form form={form} layout="vertical">
           <Form.Item name="customerId" label="客戶" rules={[{ required: true, message: '請選擇客戶' }]}>
             <Select options={customerOptions} placeholder="請選擇客戶" showSearch optionFilterProp="label" />
           </Form.Item>

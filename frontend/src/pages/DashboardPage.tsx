@@ -19,7 +19,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div style={{ textAlign: 'center', padding: 80 }}>
-        <Spin size="large" tip="載入中..." />
+        <Spin size="large" />
       </div>
     )
   }

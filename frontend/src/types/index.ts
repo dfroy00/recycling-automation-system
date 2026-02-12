@@ -260,8 +260,8 @@ export interface TripItem {
 export interface TripItemFormData {
   itemId: number
   quantity: number
-  manualPrice?: number
-  manualDirection?: string
+  unitPrice?: number
+  billingDirection?: string
 }
 
 // ==================== 月結明細 ====================

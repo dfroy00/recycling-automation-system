@@ -422,9 +422,8 @@ export default function ContractsPage() {
         onCancel={() => { setModalOpen(false); setEditingContract(null); form.resetFields() }}
         confirmLoading={createContract.isPending || updateContract.isPending}
         width={isMobile ? '95%' : 640}
-        destroyOnClose
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form form={form} layout="vertical">
           <Form.Item
             name="customerId"
             label="客戶"

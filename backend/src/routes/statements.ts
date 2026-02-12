@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { generateMonthlyStatements, generateCustomerStatement, generateTripStatement } from '../services/statement.service'
+import { sendStatementEmail } from '../services/notification.service'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
 
 const router = Router()
@@ -184,16 +185,51 @@ router.post('/:id/send', async (_req: Request, res: Response) => {
     return
   }
 
-  // TODO: 實際寄送邏輯（Email/LINE）
-  const updated = await prisma.statement.update({
-    where: { id: statement.id },
-    data: {
-      status: 'sent',
-      sentAt: new Date(),
-      sentMethod: statement.customer.notificationMethod,
-    },
-  })
-  res.json(updated)
+  const method = statement.customer.notificationMethod || 'email'
+
+  try {
+    if (method === 'email' || method === 'both') {
+      if (!statement.customer.notificationEmail) {
+        res.status(400).json({ error: '客戶未設定通知 Email' })
+        return
+      }
+      await sendStatementEmail(statement.id)
+    }
+
+    if (method === 'line' || method === 'both') {
+      // LINE 通知尚未實作，記錄 log
+      await prisma.systemLog.create({
+        data: {
+          eventType: 'statement_send_skip',
+          eventContent: `明細 #${statement.id} LINE 通知跳過（尚未實作）`,
+        },
+      })
+    }
+
+    // sendStatementEmail 已更新狀態，若是 line only 需手動更新
+    if (method === 'line') {
+      await prisma.statement.update({
+        where: { id: statement.id },
+        data: { status: 'sent', sentAt: new Date(), sentMethod: 'line' },
+      })
+    }
+
+    const updated = await prisma.statement.findUnique({
+      where: { id: statement.id },
+      include: { customer: { select: { id: true, name: true } } },
+    })
+    res.json(updated)
+  } catch (err: any) {
+    // 寄送失敗：記錄錯誤並增加重試次數
+    await prisma.statement.update({
+      where: { id: statement.id },
+      data: {
+        sendRetryCount: { increment: 1 },
+        sendError: err.message || '寄送失敗',
+      },
+    })
+    res.status(500).json({ error: `寄送失敗：${err.message}` })
+  }
 })
 
 // POST /api/statements/:id/void
