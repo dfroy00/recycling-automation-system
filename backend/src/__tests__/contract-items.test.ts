@@ -14,10 +14,19 @@ let testItemId: number
 let createdContractItemId: number
 
 beforeAll(async () => {
-  // 建立測試使用者並取得 token
+  // 清理上次殘留的測試資料（按 FK 依賴順序）
+  await prisma.contractItem.deleteMany({ where: { contract: { contractNumber: 'TEST-CI-001' } } }).catch(() => {})
+  await prisma.contract.deleteMany({ where: { contractNumber: 'TEST-CI-001' } }).catch(() => {})
+  await prisma.customer.deleteMany({ where: { name: '合約品項測試客戶_ci' } }).catch(() => {})
+  await prisma.site.deleteMany({ where: { name: '合約品項測試站_ci' } }).catch(() => {})
+  await prisma.item.deleteMany({ where: { name: '合約品項測試品項_ci' } }).catch(() => {})
+
+  // 建立測試使用者並取得 token（使用 upsert 避免唯一約束衝突）
   const passwordHash = await bcrypt.hash('test1234', 10)
-  const user = await prisma.user.create({
-    data: {
+  const user = await prisma.user.upsert({
+    where: { username: 'ci_test_user' },
+    update: { passwordHash },
+    create: {
       username: 'ci_test_user',
       passwordHash,
       name: '合約品項測試使用者',
@@ -31,13 +40,18 @@ beforeAll(async () => {
     .send({ username: 'ci_test_user', password: 'test1234' })
   token = loginRes.body.token
 
-  // 建立測試站區
-  const site = await prisma.site.create({
-    data: { name: '合約品項測試站_ci', status: 'active' },
+  // 建立測試站區（使用 upsert 避免唯一約束衝突）
+  const site = await prisma.site.upsert({
+    where: { name: '合約品項測試站_ci' },
+    update: { status: 'active' },
+    create: { name: '合約品項測試站_ci', status: 'active' },
   })
   testSiteId = site.id
 
-  // 建立測試客戶
+  // 建立測試客戶（先清理舊資料再建立）
+  await prisma.customer.deleteMany({
+    where: { name: '合約品項測試客戶_ci' },
+  }).catch(() => {})
   const customer = await prisma.customer.create({
     data: {
       siteId: testSiteId,
@@ -60,9 +74,11 @@ beforeAll(async () => {
   })
   testContractId = contract.id
 
-  // 建立測試品項
-  const item = await prisma.item.create({
-    data: { name: '合約品項測試品項_ci', unit: 'kg', category: '測試' },
+  // 建立測試品項（使用 upsert 避免唯一約束衝突）
+  const item = await prisma.item.upsert({
+    where: { name: '合約品項測試品項_ci' },
+    update: {},
+    create: { name: '合約品項測試品項_ci', unit: 'kg', category: '測試' },
   })
   testItemId = item.id
 })

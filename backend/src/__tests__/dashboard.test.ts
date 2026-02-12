@@ -9,10 +9,12 @@ let token: string
 let testUserId: number
 
 beforeAll(async () => {
-  // 建立測試使用者並取得 token
+  // 建立測試使用者並取得 token（使用 upsert 避免殘留資料造成唯一約束衝突）
   const passwordHash = await bcrypt.hash('test1234', 10)
-  const user = await prisma.user.create({
-    data: {
+  const user = await prisma.user.upsert({
+    where: { username: 'dashboard_test_user' },
+    update: { passwordHash },
+    create: {
       username: 'dashboard_test_user',
       passwordHash,
       name: '儀表板測試使用者',

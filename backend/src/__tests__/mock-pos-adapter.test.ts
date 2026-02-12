@@ -11,13 +11,26 @@ let testMockRecordId: number
 beforeAll(async () => {
   adapter = new MockPosAdapter()
 
-  // 建立測試站區
-  const site = await prisma.site.create({
-    data: { name: '測試站_pos_adapter', status: 'active' },
+  // 清理上次殘留的測試資料（按 FK 依賴順序）
+  await prisma.mockPosCollection.deleteMany({
+    where: { externalId: { startsWith: 'POS-TEST' } },
+  }).catch(() => {})
+  await prisma.systemLog.deleteMany({
+    where: { eventType: { startsWith: 'mock_sync' } },
+  }).catch(() => {})
+
+  // 建立測試站區（使用 upsert 避免唯一約束衝突）
+  const site = await prisma.site.upsert({
+    where: { name: '測試站_pos_adapter' },
+    update: { status: 'active' },
+    create: { name: '測試站_pos_adapter', status: 'active' },
   })
   testSiteId = site.id
 
-  // 建立測試客戶
+  // 建立測試客戶（先清理舊資料再建立）
+  await prisma.customer.deleteMany({
+    where: { name: '測試客戶_pos_adapter' },
+  }).catch(() => {})
   const customer = await prisma.customer.create({
     data: {
       siteId: testSiteId,
