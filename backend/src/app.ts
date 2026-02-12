@@ -19,6 +19,7 @@ import statementRoutes from './routes/statements'
 import reportRoutes from './routes/reports'
 import scheduleRoutes from './routes/schedule'
 import syncRoutes from './routes/sync'
+import businessEntityRoutes from './routes/business-entities'
 
 dotenv.config()
 
@@ -56,6 +57,7 @@ app.use('/api/statements', authMiddleware as any, statementRoutes)
 app.use('/api/reports', authMiddleware as any, reportLimiter, reportRoutes)
 app.use('/api/schedule', authMiddleware as any, scheduleRoutes)
 app.use('/api/sync', authMiddleware as any, syncRoutes)
+app.use('/api/business-entities', authMiddleware as any, businessEntityRoutes)
 
 // 全域錯誤處理（必須放在所有路由之後）
 app.use(globalErrorHandler)

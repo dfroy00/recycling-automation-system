@@ -15,6 +15,7 @@ import {
   ClockCircleOutlined,
   MenuOutlined,
   LogoutOutlined,
+  BankOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -37,6 +38,7 @@ const menuItems = [
       { key: '/sites', icon: <EnvironmentOutlined />, label: '站區管理' },
       { key: '/items', icon: <AppstoreOutlined />, label: '品項管理' },
       { key: '/customers', icon: <TeamOutlined />, label: '客戶管理' },
+      { key: '/business-entities', icon: <BankOutlined />, label: '行號管理' },
       { key: '/contracts', icon: <FileTextOutlined />, label: '合約管理' },
     ],
   },

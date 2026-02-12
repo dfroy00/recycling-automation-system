@@ -7,7 +7,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant
 import {
   useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer,
   useCustomerFees, useCreateCustomerFee, useUpdateCustomerFee, useDeleteCustomerFee,
-  useSites,
+  useSites, useBusinessEntities,
 } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Customer, CustomerFormData, CustomerFee, CustomerFeeFormData } from '../types'
@@ -31,6 +31,7 @@ export default function CustomersPage() {
 
   const { data, isLoading } = useCustomers({ page, pageSize: 20, search, siteId: siteFilter, type: typeFilter })
   const { data: sitesData } = useSites({ all: true })
+  const { data: businessEntitiesData } = useBusinessEntities({ all: true })
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
@@ -51,6 +52,7 @@ export default function CustomersPage() {
       form.setFieldsValue({
         ...customer,
         tripFeeAmount: customer.tripFeeAmount ? Number(customer.tripFeeAmount) : null,
+        businessEntityId: customer.businessEntityId ?? undefined,
       })
     } else {
       setEditingCustomer(null)
@@ -99,6 +101,11 @@ export default function CustomersPage() {
 
   // 站區選項
   const siteOptions = (sitesData?.data ?? []).map((s) => ({ value: s.id, label: s.name }))
+
+  // 行號選項
+  const businessEntityOptions = (businessEntitiesData?.data ?? [])
+    .filter((e) => e.status === 'active')
+    .map((e) => ({ value: e.id, label: `${e.name}（${e.taxId}）` }))
 
   // 類型標籤
   const typeLabel = (type: string) => type === 'contracted' ? '簽約' : '臨時'
@@ -385,6 +392,15 @@ export default function CustomersPage() {
                     { value: 'net', label: '淨額一張' },
                     { value: 'separate', label: '應收應付分開' },
                   ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item name="businessEntityId" label="開票行號">
+                <Select
+                  allowClear
+                  placeholder="請選擇行號"
+                  options={businessEntityOptions}
                 />
               </Form.Item>
             </Col>

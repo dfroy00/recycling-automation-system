@@ -25,6 +25,22 @@ model Site {
   @@map("sites")
 }
 
+// ==================== 行號主檔 ====================
+model BusinessEntity {
+  id        Int      @id @default(autoincrement()) /// 自動遞增
+  name      String   @unique /// 行號名稱
+  taxId     String   @unique @map("tax_id") /// 統一編號
+  bizItems  String?  @map("biz_items") /// 營業項目說明
+  status    String   @default("active") /// 狀態：active / inactive
+  createdAt DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  customers  Customer[]  /// 使用此行號的客戶
+  statements Statement[] /// 快照此行號的明細
+
+  @@map("business_entities")
+}
+
 // ==================== 品項主檔 ====================
 model Item {
   id        Int      @id @default(autoincrement()) /// 自動遞增，同時作為品項編號
@@ -63,15 +79,17 @@ model Customer {
   notificationEmail  String?  @map("notification_email") /// 通知 Email
   notificationLineId String?  @map("notification_line_id") /// LINE ID
   paymentAccount     String?  @map("payment_account") /// 匯款帳戶資訊
+  businessEntityId   Int?     @map("business_entity_id") /// 開票行號
   status             String   @default("active") /// 狀態：active / inactive
   createdAt          DateTime @default(now()) @map("created_at") /// 建立時間
   updatedAt          DateTime @updatedAt @map("updated_at") /// 更新時間
 
-  site       Site           @relation(fields: [siteId], references: [id])
-  contracts  Contract[]     /// 客戶的合約
-  fees       CustomerFee[]  /// 客戶附加費用
-  trips      Trip[]         /// 客戶的車趟
-  statements Statement[]    /// 客戶的結算明細
+  site             Site            @relation(fields: [siteId], references: [id])
+  businessEntity   BusinessEntity? @relation(fields: [businessEntityId], references: [id])
+  contracts        Contract[]      /// 客戶的合約
+  fees             CustomerFee[]   /// 客戶附加費用
+  trips            Trip[]          /// 客戶的車趟
+  statements       Statement[]     /// 客戶的結算明細
 
   @@index([siteId, status])
   @@map("customers")
@@ -208,13 +226,15 @@ model Statement {
   voidedAt                DateTime? @map("voided_at") /// 作廢時間
   voidedBy                Int?      @map("voided_by") /// 作廢操作人
   voidReason              String?   @map("void_reason") /// 作廢原因（作廢時必填）
+  businessEntityId        Int?      @map("business_entity_id") /// 快照：產出明細當下的開票行號
   createdAt               DateTime  @default(now()) @map("created_at") /// 建立時間
   updatedAt               DateTime  @updatedAt @map("updated_at") /// 更新時間
 
-  customer     Customer @relation(fields: [customerId], references: [id])
-  trip         Trip?    @relation("TripStatement", fields: [tripId], references: [id])
-  reviewer     User?    @relation("ReviewerStatements", fields: [reviewedBy], references: [id])
-  voidedByUser User?    @relation("VoidedByUser", fields: [voidedBy], references: [id])
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  trip           Trip?           @relation("TripStatement", fields: [tripId], references: [id])
+  reviewer       User?           @relation("ReviewerStatements", fields: [reviewedBy], references: [id])
+  voidedByUser   User?           @relation("VoidedByUser", fields: [voidedBy], references: [id])
+  businessEntity BusinessEntity? @relation(fields: [businessEntityId], references: [id])
 
   @@index([customerId, yearMonth, status])
   @@map("statements")

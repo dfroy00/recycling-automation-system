@@ -18,6 +18,7 @@ import SyncPage from './pages/SyncPage'
 import StatementsPage from './pages/StatementsPage'
 import ReportsPage from './pages/ReportsPage'
 import SchedulePage from './pages/SchedulePage'
+import BusinessEntitiesPage from './pages/BusinessEntitiesPage'
 
 // React Query 客戶端
 const queryClient = new QueryClient({
@@ -59,6 +60,7 @@ export default function App() {
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/holidays" element={<HolidaysPage />} />
                 <Route path="/schedule" element={<SchedulePage />} />
+                <Route path="/business-entities" element={<BusinessEntitiesPage />} />
               </Route>
 
               {/* 根路徑導向儀表板 */}

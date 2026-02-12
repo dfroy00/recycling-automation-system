@@ -7,6 +7,7 @@ import type {
   Item, ItemFormData,
   User, UserFormData,
   Holiday, HolidayFormData,
+  BusinessEntity, BusinessEntityFormData,
   Customer, CustomerFormData,
   CustomerFee, CustomerFeeFormData,
   Contract, ContractFormData,
@@ -165,6 +166,69 @@ export function useDeleteItem() {
     },
     onError: () => {
       message.error('品項刪除失敗')
+    },
+  })
+}
+
+// ==================== 行號 ====================
+
+export function useBusinessEntities(params?: { page?: number; pageSize?: number; all?: boolean }) {
+  return useQuery<PaginatedResponse<BusinessEntity>>({
+    queryKey: ['businessEntities', params],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/business-entities', { params })
+      return normalizePaginatedResponse<BusinessEntity>(data)
+    },
+    staleTime: 5 * 60 * 1000, // 5 分鐘快取（行號不常變動）
+  })
+}
+
+export function useCreateBusinessEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (formData: BusinessEntityFormData) => {
+      const { data } = await apiClient.post('/business-entities', formData)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
+      message.success('行號新增成功')
+    },
+    onError: () => {
+      message.error('行號新增失敗')
+    },
+  })
+}
+
+export function useUpdateBusinessEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...formData }: BusinessEntityFormData & { id: number }) => {
+      const { data } = await apiClient.patch(`/business-entities/${id}`, formData)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
+      message.success('行號更新成功')
+    },
+    onError: () => {
+      message.error('行號更新失敗')
+    },
+  })
+}
+
+export function useDeleteBusinessEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.delete(`/business-entities/${id}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
+      message.success('行號刪除成功')
+    },
+    onError: () => {
+      message.error('行號刪除失敗')
     },
   })
 }

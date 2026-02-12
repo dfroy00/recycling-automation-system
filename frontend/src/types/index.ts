@@ -81,6 +81,24 @@ export interface HolidayFormData {
   year: number
 }
 
+// ==================== 行號 ====================
+export interface BusinessEntity {
+  id: number
+  name: string
+  taxId: string
+  bizItems: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BusinessEntityFormData {
+  name: string
+  taxId: string
+  bizItems?: string | null
+  status?: string
+}
+
 // ==================== 客戶 ====================
 export interface Customer {
   id: number
@@ -103,10 +121,12 @@ export interface Customer {
   notificationEmail: string | null
   notificationLineId: string | null
   paymentAccount: string | null
+  businessEntityId: number | null
   status: string
   createdAt: string
   updatedAt: string
   site?: Site
+  businessEntity?: BusinessEntity
 }
 
 export interface CustomerFormData {
@@ -129,6 +149,7 @@ export interface CustomerFormData {
   notificationEmail?: string | null
   notificationLineId?: string | null
   paymentAccount?: string | null
+  businessEntityId?: number | null
   status?: string
 }
 
