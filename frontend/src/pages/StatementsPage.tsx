@@ -11,10 +11,10 @@ import dayjs from 'dayjs'
 import {
   useStatements, useGenerateStatements, useReviewStatement,
   useInvoiceStatement, useSendStatement, useVoidStatement,
-  useCustomers,
+  useCustomers, useTrips,
 } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
-import type { Statement } from '../types'
+import type { Statement, Trip, TripItem } from '../types'
 
 const { Title, Text } = Typography
 
@@ -102,6 +102,18 @@ export default function StatementsPage() {
   const invoiceStatement = useInvoiceStatement()
   const sendStatement = useSendStatement()
   const voidStatement = useVoidStatement()
+
+  // 車趟預覽：當月份和客戶都選定時，查詢該月車趟
+  const { data: previewTrips, isLoading: previewLoading } = useTrips(
+    yearMonth && filterCustomerId
+      ? {
+          customerId: filterCustomerId,
+          dateFrom: `${yearMonth}-01`,
+          dateTo: dayjs(`${yearMonth}-01`).endOf('month').format('YYYY-MM-DD'),
+          pageSize: 999,
+        }
+      : { pageSize: 0 }
+  )
 
   const customerOptions = (customersData?.data ?? []).map(c => ({
     value: c.id,
@@ -250,6 +262,62 @@ export default function StatementsPage() {
           showSearch optionFilterProp="label"
         />
       </Space>
+
+      {/* 車趟預覽 */}
+      {yearMonth && filterCustomerId ? (
+        <Card
+          title={`車趟預覽：${yearMonth}`}
+          style={{ marginBottom: 16 }}
+          loading={previewLoading}
+          size="small"
+        >
+          {(previewTrips?.data ?? []).length === 0 ? (
+            <Text type="secondary">該客戶該月無車趟紀錄</Text>
+          ) : (
+            <>
+              <Text style={{ marginBottom: 8, display: 'block' }}>
+                共 {(previewTrips?.data ?? []).length} 趟
+              </Text>
+              <Table<Trip>
+                columns={[
+                  { title: '日期', dataIndex: 'tripDate', key: 'date', render: (v: string) => dayjs(v).format('MM/DD') },
+                  { title: '司機', dataIndex: 'driver', key: 'driver', render: (v: string | null) => v ?? '-' },
+                  { title: '車牌', dataIndex: 'vehiclePlate', key: 'plate', render: (v: string | null) => v ?? '-' },
+                  { title: '來源', dataIndex: 'source', key: 'source' },
+                  { title: '品項數', key: 'itemCount', render: (_: unknown, r: Trip) => r.items?.length ?? 0 },
+                ]}
+                dataSource={previewTrips?.data ?? []}
+                rowKey="id"
+                size="small"
+                pagination={false}
+                expandable={{
+                  expandedRowRender: (record: Trip) => (
+                    <Table<TripItem>
+                      columns={[
+                        { title: '品項', key: 'itemName', render: (_: unknown, r: TripItem) => r.item?.name ?? '-' },
+                        { title: '數量', key: 'qty', render: (_: unknown, r: TripItem) => `${Number(r.quantity)} ${r.unit}` },
+                        { title: '單價', dataIndex: 'unitPrice', key: 'price', render: (v: string) => `$${Number(v).toLocaleString()}` },
+                        { title: '方向', dataIndex: 'billingDirection', key: 'dir' },
+                        { title: '金額', dataIndex: 'amount', key: 'amount', render: (v: string) => `$${Number(v).toLocaleString()}` },
+                      ]}
+                      dataSource={record.items ?? []}
+                      rowKey="id"
+                      size="small"
+                      pagination={false}
+                    />
+                  ),
+                }}
+              />
+            </>
+          )}
+        </Card>
+      ) : (
+        yearMonth || filterCustomerId ? (
+          <Card style={{ marginBottom: 16 }} size="small">
+            <Text type="secondary">請同時選擇月份和客戶以預覽車趟</Text>
+          </Card>
+        ) : null
+      )}
 
       {/* 狀態 Tab */}
       <Tabs
