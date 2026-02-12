@@ -44,6 +44,8 @@ export default function CustomersPage() {
 
   // 監聽車趟費啟用狀態
   const tripFeeEnabled = Form.useWatch('tripFeeEnabled', form)
+  // 監聽是否開立發票
+  const invoiceRequired = Form.useWatch('invoiceRequired', form)
 
   // 開啟新增/編輯 Modal
   const openModal = (customer?: Customer) => {
@@ -396,11 +398,17 @@ export default function CustomersPage() {
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
-              <Form.Item name="businessEntityId" label="開票行號">
+              <Form.Item
+                name="businessEntityId"
+                label="開票行號"
+                rules={[{ required: invoiceRequired, message: '開立發票時，開票行號為必填' }]}
+              >
                 <Select
                   allowClear
-                  placeholder="請選擇行號"
+                  placeholder={invoiceRequired ? '請選擇行號（必填）' : '請選擇行號'}
                   options={businessEntityOptions}
+                  showSearch
+                  optionFilterProp="label"
                 />
               </Form.Item>
             </Col>

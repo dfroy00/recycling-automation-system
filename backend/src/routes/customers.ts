@@ -79,6 +79,12 @@ router.post('/', async (req: Request, res: Response) => {
     }
   }
 
+  // 開立發票時，開票行號為必填
+  if (data.invoiceRequired && !data.businessEntityId) {
+    res.status(400).json({ error: '開立發票時，開票行號為必填' })
+    return
+  }
+
   try {
     const customer = await prisma.customer.create({
       data: {
@@ -97,6 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
         paymentDueDay: data.paymentDueDay,
         invoiceRequired: data.invoiceRequired ?? false,
         invoiceType: data.invoiceType,
+        businessEntityId: data.businessEntityId ?? null,
         notificationMethod: data.notificationMethod ?? 'email',
         notificationEmail: data.notificationEmail,
         notificationLineId: data.notificationLineId,
@@ -143,12 +150,27 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
   }
 
+  // 開立發票時，開票行號為必填（需考慮部分更新情境）
+  if (data.invoiceRequired !== undefined || data.businessEntityId !== undefined) {
+    const existing = await prisma.customer.findUnique({
+      where: { id: Number(req.params.id) },
+    })
+    if (existing) {
+      const invoiceRequired = data.invoiceRequired ?? existing.invoiceRequired
+      const businessEntityId = data.businessEntityId ?? existing.businessEntityId
+      if (invoiceRequired && !businessEntityId) {
+        res.status(400).json({ error: '開立發票時，開票行號為必填' })
+        return
+      }
+    }
+  }
+
   const updateData: any = {}
   const fields = [
     'siteId', 'name', 'contactPerson', 'phone', 'address', 'type',
     'tripFeeEnabled', 'tripFeeType', 'tripFeeAmount',
     'statementType', 'paymentType', 'statementSendDay', 'paymentDueDay',
-    'invoiceRequired', 'invoiceType', 'notificationMethod',
+    'invoiceRequired', 'invoiceType', 'businessEntityId', 'notificationMethod',
     'notificationEmail', 'notificationLineId', 'paymentAccount', 'status',
   ]
   for (const field of fields) {
