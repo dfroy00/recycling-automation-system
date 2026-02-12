@@ -14,6 +14,53 @@
 
 ---
 
+## 實作進度總覽（更新日期：2026-02-12）
+
+### 原計畫任務（Phase 1-6, Task 1-15）
+
+| Task | 說明 | 狀態 |
+|------|------|------|
+| Task 1 | 修復 Dashboard 欄位名稱不匹配 | 已完成 |
+| Task 2 | 修復 `all=true` 下拉空白 | 已完成 |
+| Task 3 | 修復 Users / Holidays hooks 回傳格式 | 已完成 |
+| Task 4 | 下載 Noto Sans TC 字型 | 已完成 |
+| Task 5 | 修改 PDF Generator 使用中文字型 | 已完成 |
+| Task 6 | 拆分 TripItemsExpand 為獨立元件 | 已完成 |
+| Task 7 | 建立 SiteTripsTab 元件 | 已完成 |
+| Task 8 | 改寫 TripsPage 為 Tabs 架構 | 已完成 |
+| Task 9 | 新增 BusinessEntity Prisma Model | 已完成 |
+| Task 10 | 新增 BusinessEntity 後端 CRUD API | 已完成 |
+| Task 11 | 前端 — 行號型別、hooks、頁面 | 已完成 |
+| Task 12 | 客戶 Modal 加入行號下拉 | 已完成 |
+| Task 13 | 月結頁面新增車趟預覽區塊 | 已完成 |
+| Task 14 | 跑全部後端測試 | 已完成 |
+| Task 15 | 前端編譯檢查 + 開發伺服器驗證 | 已完成 |
+
+### Playwright 瀏覽器測試發現的額外問題（2026-02-12 新增）
+
+| 問題 | 修復檔案 | 狀態 |
+|------|---------|------|
+| Ant Design Spin `tip` 警告 | `ProtectedRoute.tsx`, `DashboardPage.tsx` | 已修復 — 移除 `tip` prop |
+| Ant Design Modal `destroyOnClose` 棄用警告 | `ContractsPage.tsx`, `SiteTripsTab.tsx` | 已修復 — 移除 `destroyOnClose` |
+| Form `useForm` 未連接警告 | `ContractsPage.tsx`, `SiteTripsTab.tsx` | 已修復 — 移除 `preserve={false}` |
+| 車趟品項新增 400 Bad Request | `TripItemsExpand.tsx`, `types/index.ts` | 已修復 — 欄位名稱 `manualPrice`/`manualDirection` → `unitPrice`/`billingDirection` |
+| 手動寄送明細只標記狀態未實際寄送 | `backend/src/routes/statements.ts` | 已修復 — 整合 `sendStatementEmail()` 呼叫 |
+
+### 已知的待完成項目
+
+| 項目 | 說明 | 狀態 |
+|------|------|------|
+| LINE 通知 | `notification.service.ts` 預留介面，尚未實作 LINE Messaging API | 未實作 |
+| 排程初始化 | `initScheduler()` 需確認在 `index.ts` 中有被呼叫 | 待確認 |
+| SMTP 設定 | `.env` 中 SMTP 設定為範例值，需替換為正式帳號 | 待設定 |
+| Dashboard 應收/應付為 $0 | 正常行為 — 財務數據來自月結明細，非車趟直接統計 | 不需修復 |
+| 站區/行號/品項刪除功能異常 | 前端刪除按鈕為「停用」語義但標示「刪除」，後端為軟刪除。已在 Phase 7 規劃修正。 | Phase 7 待實作 |
+| **行號管理 Popconfirm 不可見（重大 Bug）** | 行號管理表格操作欄溢出視窗右側，導致「刪除」按鈕的 Popconfirm 渲染在螢幕外不可見。**根因分析見 Phase 10。** | Phase 10 待實作 |
+| 品項分類缺少主檔 CRUD | 目前 `Item.category` 是 `String?` 自由文字，無獨立的 Category model 和 CRUD API。新增品項時分類欄位為 `<Input>` 自由填寫，應改為 `<Select>` 下拉選擇。需新增：(1) Category Prisma model (2) 後端 `/api/categories` CRUD (3) 前端 `useCategories` hook (4) `ItemsPage` 分類欄位改為 Select (5) 分類管理頁面或內嵌管理 | Phase 8 待實作 |
+| **新增合約後客戶類型不會自動變為簽約** | 後端 `POST /api/contracts` 只建立合約記錄，**完全沒有更新 `customer.type` 的邏輯**。終止合約時也沒有反向檢查。前端 hooks 成功後只 invalidate `contracts` cache，未 invalidate `customers`。**根因分析見 Phase 11。** | Phase 11 待實作 |
+
+---
+
 ## Phase 1: Bug 修復
 
 ### Task 1: 修復 Dashboard 欄位名稱不匹配
@@ -1584,4 +1631,1106 @@ npm run dev -- --port 3300
 cd D:\recycling-automation-system
 git add -A
 git commit -m "fix: 整合驗證修正"
+```
+
+---
+
+## Phase 7: 站區/行號/品項刪除功能修正
+
+### 問題分析
+
+三個模組的後端 DELETE API 均為**軟刪除**（`UPDATE status = 'inactive'`），但存在以下問題：
+
+1. **前端按鈕文字為「刪除」**，使用者預期項目會消失，實際上只是變成「停用」仍顯示在列表中
+2. **後端列表查詢沒有過濾 inactive 項目**，軟刪除後的項目仍出現在分頁列表和 `all=true` 查詢中
+3. **前端成功訊息為「刪除成功」**，但項目沒有消失，造成混淆
+
+**設計決策：** 軟刪除是正確的（保留資料完整性），但 UX 需要調整：
+- 列表**預設只顯示 active 項目**
+- 按鈕文字改為「**停用**」，確認訊息改為「**確定停用？**」
+- 提供篩選器讓使用者可切換查看「全部 / 啟用中 / 已停用」
+- 已停用項目提供「**啟用**」按鈕恢復
+
+---
+
+### Task 16: 後端列表查詢預設過濾 inactive 項目
+
+**Files:**
+- Modify: `backend/src/routes/sites.ts`
+- Modify: `backend/src/routes/business-entities.ts`
+- Modify: `backend/src/routes/items.ts`
+
+**Step 1: 修改 `backend/src/routes/sites.ts` 列表查詢**
+
+在 GET `/` 路由加入 status 篩選支援，預設只回傳 active：
+
+```typescript
+router.get('/', async (req: Request, res: Response) => {
+  const { status } = req.query
+  const { page, pageSize, skip, all } = parsePagination(req)
+
+  // 預設只回傳 active，可透過 ?status=all 查看全部
+  const where: any = {}
+  if (status && status !== 'all') {
+    where.status = status as string
+  } else if (!status) {
+    where.status = 'active'
+  }
+
+  if (all) {
+    const sites = await prisma.site.findMany({ where, orderBy: { id: 'asc' } })
+    res.json(sites)
+    return
+  }
+
+  const [sites, total] = await Promise.all([
+    prisma.site.findMany({ where, orderBy: { id: 'asc' }, skip, take: pageSize }),
+    prisma.site.count({ where }),
+  ])
+  res.json(paginationResponse(sites, total, page, pageSize))
+})
+```
+
+**Step 2: 對 `business-entities.ts` 和 `items.ts` 做相同修改**
+
+`items.ts` 已有 status 篩選但不是預設行為，改為預設 `where.status = 'active'`（當 `?status` 未傳時）。
+
+**Step 3: 驗證**
+
+```bash
+cd D:\recycling-automation-system\backend
+npx tsc --noEmit
+```
+
+**Step 4: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add backend/src/routes/sites.ts backend/src/routes/business-entities.ts backend/src/routes/items.ts
+git commit -m "fix: 站區/行號/品項列表預設過濾 inactive 項目"
+```
+
+---
+
+### Task 17: 前端刪除 UX 改為「停用/啟用」
+
+**Files:**
+- Modify: `frontend/src/pages/SitesPage.tsx`
+- Modify: `frontend/src/pages/BusinessEntitiesPage.tsx`
+- Modify: `frontend/src/pages/ItemsPage.tsx`
+- Modify: `frontend/src/api/hooks.ts`
+
+**Step 1: 修改前端按鈕文字和確認訊息**
+
+在三個頁面中，將操作列的「刪除」相關 UI 統一修改：
+
+```tsx
+// 原本
+<Popconfirm title="確定刪除此站區？" onConfirm={() => deleteSite.mutate(record.id)}>
+  <Button type="link" size="small" danger icon={<DeleteOutlined />}>刪除</Button>
+</Popconfirm>
+
+// 修改為
+<Popconfirm title="確定停用此站區？" onConfirm={() => deleteSite.mutate(record.id)}>
+  <Button type="link" size="small" danger icon={<StopOutlined />}>停用</Button>
+</Popconfirm>
+```
+
+> 三個頁面（SitesPage、BusinessEntitiesPage、ItemsPage）皆同理修改，桌面版和手機版按鈕都要改。
+> 需在 import 中加入 `StopOutlined`。
+
+**Step 2: 修改 hooks 成功訊息**
+
+在 `frontend/src/api/hooks.ts` 中修改三個 delete hooks 的成功訊息：
+
+```typescript
+// useDeleteSite
+message.success('站區已停用')
+
+// useDeleteBusinessEntity
+message.success('行號已停用')
+
+// useDeleteItem
+message.success('品項已停用')
+```
+
+**Step 3: 在三個頁面加入狀態篩選器**
+
+在各頁面的篩選列中新增狀態下拉：
+
+```tsx
+<Select
+  defaultValue="active"
+  style={{ width: 120 }}
+  onChange={(val) => { setStatusFilter(val); setPage(1) }}
+  options={[
+    { value: 'active', label: '啟用中' },
+    { value: 'all', label: '全部' },
+    { value: 'inactive', label: '已停用' },
+  ]}
+/>
+```
+
+並將 `statusFilter` 狀態傳入 hook 的查詢參數：
+
+```typescript
+const { data, isLoading } = useSites({ page, pageSize: 20, status: statusFilter })
+```
+
+**Step 4: 修改 hooks 支援 status 參數**
+
+在 `useSites`、`useBusinessEntities`、`useItems` 的 params 中加入 `status?: string`，傳入 API 查詢。
+
+**Step 5: 驗證**
+
+```bash
+cd D:\recycling-automation-system\frontend
+npx tsc --noEmit
+```
+
+**Step 6: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add frontend/src/pages/SitesPage.tsx frontend/src/pages/BusinessEntitiesPage.tsx frontend/src/pages/ItemsPage.tsx frontend/src/api/hooks.ts
+git commit -m "fix: 刪除按鈕改為停用，新增狀態篩選器"
+```
+
+---
+
+## Phase 8: 品項分類主檔（Category CRUD）
+
+### Task 18: 新增 Category Prisma Model + Migration
+
+**Files:**
+- Modify: `backend/prisma/schema.prisma`
+
+**Step 1: 在 `schema.prisma` 中新增 Category model**
+
+在 `Item` model 之前加入：
+
+```prisma
+// ==================== 品項分類 ====================
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique                        /// 分類名稱（如：紙類、塑膠類）
+  status    String   @default("active")             /// 狀態：active / inactive
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items Item[]
+
+  @@map("categories")
+}
+```
+
+**Step 2: 修改 Item model 的 category 欄位**
+
+將 `category String?` 改為 Foreign Key：
+
+```prisma
+model Item {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  categoryId Int?      @map("category_id")           /// 分類 FK
+  unit       String
+  status     String    @default("active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  contractItems ContractItem[]
+  tripItems     TripItem[]
+
+  @@map("items")
+}
+```
+
+> **注意：** 這會移除舊的 `category` 字串欄位，改為 `categoryId` FK。現有資料需要 migration 處理。
+
+**Step 3: 執行 Migration**
+
+```bash
+cd D:\recycling-automation-system\backend
+npx prisma migrate dev --name add-category-model
+```
+
+> 若有現有品項資料包含 category 字串值，需要撰寫 migration script 將舊字串值轉為 Category 記錄並建立關聯。
+
+**Step 4: 建立種子分類資料**
+
+在 `backend/prisma/seed.ts` 中加入預設分類（如現有品項已有的分類值）：
+
+```typescript
+const categories = ['紙類', '塑膠類', '金屬類', '玻璃類', '廢棄物', '其他']
+for (const name of categories) {
+  await prisma.category.upsert({
+    where: { name },
+    update: {},
+    create: { name },
+  })
+}
+```
+
+**Step 5: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add backend/prisma/
+git commit -m "feat: 新增 Category model，Item.category 改為 FK 關聯"
+```
+
+---
+
+### Task 19: 新增 Category 後端 CRUD API
+
+**Files:**
+- Create: `backend/src/routes/categories.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/routes/items.ts`（回傳時 include category）
+
+**Step 1: 建立 `backend/src/routes/categories.ts`**
+
+```typescript
+import { Router, Request, Response } from 'express'
+import prisma from '../lib/prisma'
+import { parsePagination, paginationResponse } from '../middleware/parsePagination'
+
+const router = Router()
+
+// GET /api/categories — 列表（預設只回傳 active）
+router.get('/', async (req: Request, res: Response) => {
+  const { status } = req.query
+  const { page, pageSize, skip, all } = parsePagination(req)
+
+  const where: any = {}
+  if (status && status !== 'all') {
+    where.status = status as string
+  } else if (!status) {
+    where.status = 'active'
+  }
+
+  if (all) {
+    const categories = await prisma.category.findMany({ where, orderBy: { id: 'asc' } })
+    res.json(categories)
+    return
+  }
+
+  const [categories, total] = await Promise.all([
+    prisma.category.findMany({ where, orderBy: { id: 'asc' }, skip, take: pageSize }),
+    prisma.category.count({ where }),
+  ])
+  res.json(paginationResponse(categories, total, page, pageSize))
+})
+
+// POST /api/categories — 新增
+router.post('/', async (req: Request, res: Response) => {
+  const { name } = req.body
+  if (!name) {
+    res.status(400).json({ error: '分類名稱為必填' })
+    return
+  }
+  const category = await prisma.category.create({ data: { name } })
+  res.status(201).json(category)
+})
+
+// PATCH /api/categories/:id — 更新
+router.patch('/:id', async (req: Request, res: Response) => {
+  const { name, status } = req.body
+  const category = await prisma.category.update({
+    where: { id: Number(req.params.id) },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(status !== undefined && { status }),
+    },
+  })
+  res.json(category)
+})
+
+// DELETE /api/categories/:id — 軟刪除
+router.delete('/:id', async (req: Request, res: Response) => {
+  await prisma.category.update({
+    where: { id: Number(req.params.id) },
+    data: { status: 'inactive' },
+  })
+  res.json({ message: '分類已停用' })
+})
+
+export default router
+```
+
+**Step 2: 在 `app.ts` 註冊路由**
+
+```typescript
+import categoryRoutes from './routes/categories'
+app.use('/api/categories', authMiddleware as any, categoryRoutes)
+```
+
+**Step 3: 修改 `items.ts` 列表查詢 include category**
+
+在 `findMany` 中加入 `include: { category: true }`，讓前端可以顯示分類名稱。
+
+**Step 4: 修改 items POST/PATCH 接受 `categoryId` 而非 `category` 字串**
+
+```typescript
+// POST
+const { name, categoryId, unit } = req.body
+const item = await prisma.item.create({ data: { name, categoryId, unit } })
+
+// PATCH
+const { name, categoryId, unit, status } = req.body
+```
+
+**Step 5: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add backend/src/routes/categories.ts backend/src/app.ts backend/src/routes/items.ts
+git commit -m "feat: 新增 Category CRUD API，Items 改用 categoryId FK"
+```
+
+---
+
+### Task 20: 前端 — Category hooks + 品項表單改為下拉
+
+**Files:**
+- Modify: `frontend/src/types/index.ts`
+- Modify: `frontend/src/api/hooks.ts`
+- Modify: `frontend/src/pages/ItemsPage.tsx`
+
+**Step 1: 在 `types/index.ts` 新增 Category 型別**
+
+```typescript
+// ==================== 品項分類 ====================
+export interface Category {
+  id: number
+  name: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+```
+
+修改 `Item` 型別：
+
+```typescript
+export interface Item {
+  id: number
+  name: string
+  categoryId: number | null   // 改為 FK
+  category?: Category | null  // 關聯物件
+  unit: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+```
+
+修改 `ItemFormData`：
+
+```typescript
+export interface ItemFormData {
+  name: string
+  categoryId?: number | null  // 改為 FK
+  unit: string
+  status?: string
+}
+```
+
+**Step 2: 在 `hooks.ts` 新增 Category hooks**
+
+```typescript
+// ==================== 品項分類 ====================
+export function useCategories(params?: { all?: boolean; status?: string }) {
+  return useQuery<PaginatedResponse<Category>>({
+    queryKey: ['categories', params],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/categories', { params })
+      return normalizePaginatedResponse<Category>(data)
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (formData: { name: string }) => {
+      const { data } = await apiClient.post('/categories', formData)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      message.success('分類新增成功')
+    },
+  })
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...formData }: { id: number; name?: string; status?: string }) => {
+      const { data } = await apiClient.patch(`/categories/${id}`, formData)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      message.success('分類更新成功')
+    },
+  })
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.delete(`/categories/${id}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      message.success('分類已停用')
+    },
+  })
+}
+```
+
+**Step 3: 修改 `ItemsPage.tsx` — 分類欄位改為 Select**
+
+引入 `useCategories` hook：
+
+```typescript
+const { data: categoriesData } = useCategories({ all: true })
+const categoryOptions = (categoriesData?.data ?? []).map(c => ({
+  value: c.id,
+  label: c.name,
+}))
+```
+
+表單中將 Input 改為 Select：
+
+```tsx
+// 原本
+<Form.Item name="category" label="分類">
+  <Input placeholder="請輸入分類（如：紙類、塑膠類）" />
+</Form.Item>
+
+// 改為
+<Form.Item name="categoryId" label="分類">
+  <Select
+    allowClear
+    placeholder="請選擇分類"
+    options={categoryOptions}
+    showSearch
+    optionFilterProp="label"
+  />
+</Form.Item>
+```
+
+表格的分類欄位改為顯示 category.name：
+
+```typescript
+// 原本
+{ title: '分類', dataIndex: 'category', key: 'category' }
+
+// 改為
+{
+  title: '分類',
+  key: 'category',
+  render: (_: unknown, record: Item) => record.category?.name ?? '-',
+}
+```
+
+篩選下拉改為使用 categoryOptions：
+
+```tsx
+<Select
+  allowClear
+  placeholder="篩選分類"
+  style={{ width: 200 }}
+  options={categoryOptions}
+  onChange={(val) => { setCategoryFilter(val); setPage(1) }}
+/>
+```
+
+> 注意：篩選的 query param 需改為 `categoryId` 而非 `category` 字串。
+
+**Step 4: 修改 openModal 中的 setFieldsValue**
+
+```typescript
+form.setFieldsValue({
+  name: item.name,
+  categoryId: item.categoryId,  // 改為 categoryId
+  unit: item.unit,
+  status: item.status,
+})
+```
+
+**Step 5: 驗證**
+
+```bash
+cd D:\recycling-automation-system\frontend
+npx tsc --noEmit
+```
+
+**Step 6: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add frontend/src/types/index.ts frontend/src/api/hooks.ts frontend/src/pages/ItemsPage.tsx
+git commit -m "feat: 品項分類改為下拉選擇，新增 Category hooks"
+```
+
+---
+
+### Task 21: 品項管理頁面內嵌分類管理
+
+**Files:**
+- Modify: `frontend/src/pages/ItemsPage.tsx`
+
+**說明：** 在品項管理頁面的篩選列旁新增「管理分類」按鈕，點擊後開啟 Modal 進行分類的新增、編輯、停用操作。不需要獨立頁面和路由。
+
+**Step 1: 在 `ItemsPage.tsx` 中新增分類管理 Modal**
+
+```tsx
+const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+const [categoryForm] = Form.useForm()
+const createCategory = useCreateCategory()
+const updateCategory = useUpdateCategory()
+const deleteCategory = useDeleteCategory()
+
+// 分類管理 Modal
+<Modal
+  title="管理品項分類"
+  open={categoryModalOpen}
+  onCancel={() => setCategoryModalOpen(false)}
+  footer={null}
+  width={480}
+>
+  {/* 新增分類 */}
+  <Space style={{ marginBottom: 16 }}>
+    <Input
+      placeholder="新分類名稱"
+      ref={categoryInputRef}
+      onPressEnter={() => { /* 新增 */ }}
+    />
+    <Button type="primary" onClick={() => { /* 新增 */ }}>
+      新增
+    </Button>
+  </Space>
+
+  {/* 分類列表 */}
+  <Table
+    columns={[
+      { title: '名稱', dataIndex: 'name' },
+      { title: '狀態', dataIndex: 'status', render: ... },
+      { title: '操作', render: ... },
+    ]}
+    dataSource={categoriesData?.data ?? []}
+    rowKey="id"
+    size="small"
+    pagination={false}
+  />
+</Modal>
+```
+
+**Step 2: 在篩選列新增「管理分類」按鈕**
+
+```tsx
+<Button icon={<SettingOutlined />} onClick={() => setCategoryModalOpen(true)}>
+  管理分類
+</Button>
+```
+
+**Step 3: 驗證**
+
+```bash
+cd D:\recycling-automation-system\frontend
+npx tsc --noEmit
+```
+
+**Step 4: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add frontend/src/pages/ItemsPage.tsx
+git commit -m "feat: 品項管理頁面內嵌分類管理 Modal"
+```
+
+---
+
+## Phase 9: Phase 7-8 整合驗證
+
+### Task 22: Playwright 瀏覽器測試驗證
+
+**Files:** 無新增修改
+
+**Step 1: 啟動前後端開發伺服器**
+
+**Step 2: 使用 Playwright 驗證以下場景：**
+
+1. `/sites` — 列表預設只顯示啟用中站區，停用後項目消失，切換篩選可看到已停用
+2. `/business-entities` — 同上
+3. `/items` — 同上，新增品項時分類為下拉選擇
+4. `/items` — 「管理分類」Modal 可新增/停用分類
+5. `/items` — 新增品項後分類正確顯示
+
+**Step 3: 確認 console 無新增警告**
+
+**Step 4: Commit（如有修正）**
+
+```bash
+cd D:\recycling-automation-system
+git add -A
+git commit -m "fix: Phase 7-8 整合驗證修正"
+```
+
+---
+
+## Phase 10: 行號管理表格操作欄溢出修正（Popconfirm 不可見）
+
+### 問題分析（2026-02-12 Playwright 測試發現）
+
+**現象：** 在行號管理頁面點擊「刪除」按鈕後，Popconfirm 確認對話框不出現，導致無法執行刪除（停用）操作。站區管理和品項管理的刪除功能正常。
+
+**根因：** 透過 Playwright DOM 偵測確認以下事實：
+
+1. **按鈕位置溢出視窗**：刪除按鈕的 bounding box 為 `x=1866, width=66`（在 1920px 視窗下），按鈕末端達 `x=1932`，**超出 1920px 視窗邊界 12px**
+2. **Popconfirm 渲染在視窗外**：Popconfirm 確實被創建且 DOM 狀態為 `display: block, visibility: visible, opacity: 1`，但渲染位置為 `left: 1774px`，加上 Popconfirm 寬度約 250px，總計延伸到 `x ≈ 2024px`，大部分內容在視窗右側外
+3. **小視窗完全不渲染**：在 1600x900 視窗下，按鈕更遠在視窗外，Popconfirm 完全不被創建（DOM 中 `.ant-popover` 元素數量為 0）
+4. **比較基準**：站區管理的刪除按鈕位於 `x=1814`（比行號管理少 52px），Popconfirm 正常顯示
+
+**技術原因：** 行號管理表格有 5 個欄位（行號名稱、統一編號、營業項目、狀態、操作），其中「行號名稱」和「營業項目」等自動寬度欄位佔據過多空間，將操作欄推到視窗右側邊緣。操作欄雖設定 `width: 120`，但表格自動寬度分配使整體超出容器。
+
+**影響範圍：** 三個管理頁面（站區、行號、品項）的操作欄寬度都只有 120px，但行號管理因為欄位內容較寬而最先出問題。在小螢幕或側邊欄展開時，站區和品項管理也可能出現同樣問題。
+
+---
+
+### Task 23: 修正三個管理頁面的表格操作欄溢出
+
+**Files:**
+- Modify: `frontend/src/pages/BusinessEntitiesPage.tsx`
+- Modify: `frontend/src/pages/SitesPage.tsx`
+- Modify: `frontend/src/pages/ItemsPage.tsx`
+
+**修正策略：**
+1. 操作欄加上 `fixed: 'right'`，確保操作按鈕永遠可見
+2. 表格加上 `scroll={{ x: 'max-content' }}`，允許水平捲動
+3. 操作欄寬度從 120px 調整為 150px，確保按鈕和 Popconfirm 有足夠空間
+
+**Step 1: 修改 `BusinessEntitiesPage.tsx` 表格**
+
+操作欄 columns 定義修改：
+
+```typescript
+{
+  title: '操作',
+  key: 'actions',
+  width: 150,
+  fixed: 'right' as const,  // 固定在右側
+  render: (_: unknown, record: BusinessEntity) => (
+    <Space>
+      <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
+        編輯
+      </Button>
+      <Popconfirm title="確定刪除此行號？" onConfirm={() => deleteEntity.mutate(record.id)}>
+        <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+          刪除
+        </Button>
+      </Popconfirm>
+    </Space>
+  ),
+},
+```
+
+Table 元件加上 scroll：
+
+```tsx
+<Table
+  columns={columns}
+  dataSource={data?.data ?? []}
+  rowKey="id"
+  loading={isLoading}
+  pagination={{...}}
+  scroll={{ x: 'max-content' }}  // 允許水平捲動
+/>
+```
+
+> 注意：如果已有 `scroll={isMobile ? { x: 500 } : undefined}`，改為 `scroll={{ x: 'max-content' }}`（桌面和手機都適用）。
+
+**Step 2: 對 `SitesPage.tsx` 和 `ItemsPage.tsx` 做相同修改**
+
+三個頁面統一：
+- 操作欄 `width: 150` + `fixed: 'right'`
+- Table 加上 `scroll={{ x: 'max-content' }}`
+
+**Step 3: 驗證**
+
+```bash
+cd D:\recycling-automation-system\frontend
+npx tsc --noEmit
+```
+
+**Step 4: Playwright 測試驗證**
+
+重跑行號管理刪除測試，確認：
+1. Popconfirm 正常出現在可見區域
+2. 「確定」按鈕可點擊
+3. 刪除操作成功執行（項目狀態變為 inactive）
+4. 站區和品項管理的刪除也正常運作
+
+```bash
+cd D:\recycling-automation-system
+python browser-tests/2026-02-12-002-business-entity-delete/test_delete_detailed.py
+```
+Expected: 三個頁面的 Popconfirm 都正常顯示
+
+**Step 5: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add frontend/src/pages/BusinessEntitiesPage.tsx frontend/src/pages/SitesPage.tsx frontend/src/pages/ItemsPage.tsx
+git commit -m "fix: 表格操作欄加上 fixed right + scroll，修復 Popconfirm 溢出不可見"
+```
+
+---
+
+### Task 23 與 Task 17 的關係
+
+Task 23（表格溢出修正）應**先於** Task 17（刪除改停用 UX）執行，因為：
+1. Task 23 修復的是 Popconfirm 完全不可見的「阻斷性 Bug」
+2. Task 17 是 UX 改善（文字從「刪除」改「停用」），可在 Task 23 之後合併修改
+3. 兩個 Task 都修改相同的三個檔案，按順序執行可避免衝突
+
+---
+
+## Phase 11: 合約建立/終止時自動同步客戶類型
+
+### 問題分析（2026-02-12）
+
+**現象：** 在合約管理中為客戶新增合約後，客戶管理頁面的客戶類型仍停留在「臨時」，不會自動變更為「簽約」。
+
+**根因：** 後端合約 CRUD 完全沒有與客戶類型連動的業務邏輯。
+
+| 操作 | 現有邏輯 | 期望邏輯 |
+|------|---------|---------|
+| `POST /api/contracts` | 只建立合約記錄 | 建立合約 + 若客戶為臨時 → 改為簽約 |
+| `PATCH /api/contracts` (status→active) | 只更新合約 | 更新合約 + 若客戶為臨時 → 改為簽約 |
+| `DELETE /api/contracts` (→terminated) | 只終止合約 | 終止合約 + 若客戶無其他有效合約 → 改回臨時 |
+| 前端 hooks onSuccess | 只 invalidate `contracts` | 同時 invalidate `customers` |
+
+**程式碼證據：**
+
+- `backend/src/routes/contracts.ts:60-91` — POST 路由只做 `prisma.contract.create()`，無 `prisma.customer.update()`
+- `backend/src/routes/contracts.ts:125-140` — DELETE 路由只做 `prisma.contract.update({ status: 'terminated' })`，不檢查客戶其他合約
+- `frontend/src/api/hooks.ts:510-525` — `useCreateContract` onSuccess 只 `invalidateQueries({ queryKey: ['contracts'] })`
+- Customer.type 可能值：`contracted`（簽約）/ `temporary`（臨時）
+- Contract.status 可能值：`draft` / `active` / `expired` / `terminated`
+
+**設計決策：**
+- 合約狀態為 `active` 時才算有效簽約（`draft` 不算）
+- 建立合約若初始狀態為 `active` 或後續改為 `active` → 客戶自動變 `contracted`
+- 終止/到期最後一份有效合約 → 客戶自動變回 `temporary`
+- 使用 Prisma transaction 確保原子性
+
+---
+
+### Task 24: 後端 — 抽取客戶類型同步輔助函數
+
+**Files:**
+- Modify: `backend/src/routes/contracts.ts`
+
+**Step 1: 在 contracts.ts 頂部新增輔助函數**
+
+在 `const router = Router()` 之後加入：
+
+```typescript
+/**
+ * 同步客戶類型：依據客戶的有效合約數量自動更新 type
+ * - 有 active 合約 → contracted
+ * - 無 active 合約 → temporary
+ */
+async function syncCustomerType(customerId: number) {
+  const activeContractCount = await prisma.contract.count({
+    where: {
+      customerId,
+      status: 'active',
+    },
+  })
+
+  const newType = activeContractCount > 0 ? 'contracted' : 'temporary'
+
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { type: newType },
+  })
+}
+```
+
+**Step 2: 驗證**
+
+```bash
+cd D:\recycling-automation-system\backend
+npx tsc --noEmit
+```
+Expected: 無錯誤
+
+**Step 3: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add backend/src/routes/contracts.ts
+git commit -m "feat: 新增 syncCustomerType 輔助函數"
+```
+
+---
+
+### Task 25: 後端 — POST /api/contracts 建立合約後同步客戶類型
+
+**Files:**
+- Modify: `backend/src/routes/contracts.ts`
+
+**Step 1: 修改 POST /api/contracts 路由**
+
+將現有的 `prisma.contract.create()` 改為 transaction，建立合約後同步客戶類型：
+
+```typescript
+// POST /api/contracts — 新增
+router.post('/', async (req: Request, res: Response) => {
+  const { customerId, contractNumber, startDate, endDate, status: contractStatus, notes } = req.body
+
+  if (!customerId || !contractNumber || !startDate || !endDate) {
+    res.status(400).json({ error: '客戶、合約編號、起始日和到期日為必填' })
+    return
+  }
+
+  try {
+    const contract = await prisma.contract.create({
+      data: {
+        customerId,
+        contractNumber,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        status: contractStatus || 'draft',
+        notes,
+      },
+      include: {
+        customer: { select: { id: true, name: true } },
+      },
+    })
+
+    // 同步客戶類型
+    await syncCustomerType(customerId)
+
+    res.status(201).json(contract)
+  } catch (e: any) {
+    if (e.code === 'P2002') {
+      res.status(409).json({ error: '合約編號已存在' })
+      return
+    }
+    throw e
+  }
+})
+```
+
+**Step 2: 驗證**
+
+```bash
+cd D:\recycling-automation-system\backend
+npx tsc --noEmit
+```
+
+**Step 3: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add backend/src/routes/contracts.ts
+git commit -m "feat: 建立合約後自動同步客戶類型"
+```
+
+---
+
+### Task 26: 後端 — PATCH / DELETE 合約時同步客戶類型
+
+**Files:**
+- Modify: `backend/src/routes/contracts.ts`
+
+**Step 1: 修改 PATCH /api/contracts/:id**
+
+在合約更新成功後呼叫 syncCustomerType：
+
+```typescript
+// PATCH /api/contracts/:id — 更新
+router.patch('/:id', async (req: Request, res: Response) => {
+  const { contractNumber, startDate, endDate, status: contractStatus, notes } = req.body
+  const data: any = {}
+  if (contractNumber) data.contractNumber = contractNumber
+  if (startDate) data.startDate = new Date(startDate)
+  if (endDate) data.endDate = new Date(endDate)
+  if (contractStatus) data.status = contractStatus
+  if (notes !== undefined) data.notes = notes
+
+  try {
+    const contract = await prisma.contract.update({
+      where: { id: Number(req.params.id) },
+      data,
+      include: {
+        customer: { select: { id: true, name: true } },
+      },
+    })
+
+    // 合約狀態變更時，同步客戶類型
+    if (contractStatus) {
+      await syncCustomerType(contract.customerId)
+    }
+
+    res.json(contract)
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '合約不存在' })
+      return
+    }
+    if (e.code === 'P2002') {
+      res.status(409).json({ error: '合約編號已存在' })
+      return
+    }
+    throw e
+  }
+})
+```
+
+**Step 2: 修改 DELETE /api/contracts/:id**
+
+終止合約後檢查客戶是否還有其他有效合約：
+
+```typescript
+// DELETE /api/contracts/:id — 刪除（設為 terminated）
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const contract = await prisma.contract.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'terminated' },
+    })
+
+    // 終止合約後同步客戶類型
+    await syncCustomerType(contract.customerId)
+
+    res.json({ message: '已終止' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '合約不存在' })
+      return
+    }
+    throw e
+  }
+})
+```
+
+**Step 3: 驗證**
+
+```bash
+cd D:\recycling-automation-system\backend
+npx tsc --noEmit
+```
+
+**Step 4: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add backend/src/routes/contracts.ts
+git commit -m "feat: 合約更新/終止時同步客戶類型"
+```
+
+---
+
+### Task 27: 前端 — 合約 hooks 同時 invalidate customers cache
+
+**Files:**
+- Modify: `frontend/src/api/hooks.ts`
+
+**Step 1: 修改 useCreateContract**
+
+```typescript
+export function useCreateContract() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (formData: ContractFormData) => {
+      const { data } = await apiClient.post('/contracts', formData)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })  // 新增
+      message.success('合約新增成功')
+    },
+    onError: () => {
+      message.error('合約新增失敗')
+    },
+  })
+}
+```
+
+**Step 2: 修改 useUpdateContract**
+
+```typescript
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['contracts'] })
+  queryClient.invalidateQueries({ queryKey: ['customers'] })  // 新增
+  message.success('合約更新成功')
+},
+```
+
+**Step 3: 修改 useDeleteContract**
+
+```typescript
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['contracts'] })
+  queryClient.invalidateQueries({ queryKey: ['customers'] })  // 新增
+  message.success('合約刪除成功')
+},
+```
+
+**Step 4: 驗證**
+
+```bash
+cd D:\recycling-automation-system\frontend
+npx tsc --noEmit
+```
+
+**Step 5: Commit**
+
+```bash
+cd D:\recycling-automation-system
+git add frontend/src/api/hooks.ts
+git commit -m "fix: 合約 hooks 成功後同時 invalidate customers cache"
+```
+
+---
+
+### Task 28: Playwright 整合驗證 — 合約與客戶類型同步
+
+**Files:** 無新增修改
+
+**Step 1: 測試場景**
+
+1. 建立一個「臨時」客戶
+2. 為該客戶建立合約（status: active）
+3. 驗證客戶管理頁面中該客戶類型已變為「簽約」
+4. 終止該合約
+5. 驗證客戶類型已變回「臨時」
+
+**Step 2: 執行測試**
+
+```bash
+cd D:\recycling-automation-system
+python browser-tests/2026-02-12-XXX-contract-customer-type/test_contract_type_sync.py
+```
+Expected: 所有驗證點通過
+
+**Step 3: Commit（如有修正）**
+
+```bash
+cd D:\recycling-automation-system
+git add -A
+git commit -m "fix: Phase 11 整合驗證修正"
 ```
