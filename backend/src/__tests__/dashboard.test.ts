@@ -33,30 +33,45 @@ afterAll(async () => {
 })
 
 describe('GET /api/dashboard/stats', () => {
-  it('回傳正確格式的統計資料', async () => {
+  it('回傳正確格式的統計資料（對齊前端 DashboardStats 型別）', async () => {
     const res = await request(app)
       .get('/api/dashboard/stats')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
 
-    // 驗證回傳欄位的型別
-    expect(typeof res.body.tripCount).toBe('number')
+    // 驗證新欄位名稱存在且型別正確
+    expect(typeof res.body.monthlyTrips).toBe('number')
     expect(typeof res.body.totalReceivable).toBe('number')
     expect(typeof res.body.totalPayable).toBe('number')
-    expect(typeof res.body.activeCustomerCount).toBe('number')
-    expect(typeof res.body.pendingReviewCount).toBe('number')
-    expect(Array.isArray(res.body.contractAlerts)).toBe(true)
+    expect(typeof res.body.customerCount).toBe('number')
+    expect(typeof res.body.pendingReviews).toBe('number')
+    expect(Array.isArray(res.body.expiringContracts)).toBe(true)
+    expect(Array.isArray(res.body.pendingItems)).toBe(true)
 
     // 數值不應為負數
-    expect(res.body.tripCount).toBeGreaterThanOrEqual(0)
+    expect(res.body.monthlyTrips).toBeGreaterThanOrEqual(0)
     expect(res.body.totalReceivable).toBeGreaterThanOrEqual(0)
     expect(res.body.totalPayable).toBeGreaterThanOrEqual(0)
-    expect(res.body.activeCustomerCount).toBeGreaterThanOrEqual(0)
-    expect(res.body.pendingReviewCount).toBeGreaterThanOrEqual(0)
+    expect(res.body.customerCount).toBeGreaterThanOrEqual(0)
+    expect(res.body.pendingReviews).toBeGreaterThanOrEqual(0)
   })
 
-  it('contractAlerts 中的每一項都有必要欄位', async () => {
+  it('不應回傳舊的欄位名稱', async () => {
+    const res = await request(app)
+      .get('/api/dashboard/stats')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+
+    // 確認舊欄位名稱已不存在
+    expect(res.body).not.toHaveProperty('tripCount')
+    expect(res.body).not.toHaveProperty('activeCustomerCount')
+    expect(res.body).not.toHaveProperty('pendingReviewCount')
+    expect(res.body).not.toHaveProperty('contractAlerts')
+  })
+
+  it('expiringContracts 中的每一項都有正確欄位（使用 daysRemaining）', async () => {
     const res = await request(app)
       .get('/api/dashboard/stats')
       .set('Authorization', `Bearer ${token}`)
@@ -64,19 +79,42 @@ describe('GET /api/dashboard/stats', () => {
     expect(res.status).toBe(200)
 
     // 如果有合約到期提醒，驗證每項的格式
-    if (res.body.contractAlerts.length > 0) {
-      res.body.contractAlerts.forEach((alert: any) => {
-        expect(alert).toHaveProperty('id')
-        expect(alert).toHaveProperty('contractNumber')
-        expect(alert).toHaveProperty('customerId')
-        expect(alert).toHaveProperty('customerName')
-        expect(alert).toHaveProperty('endDate')
-        expect(alert).toHaveProperty('daysLeft')
-        expect(typeof alert.daysLeft).toBe('number')
-        expect(alert.daysLeft).toBeGreaterThanOrEqual(0)
-        expect(alert.daysLeft).toBeLessThanOrEqual(30)
+    if (res.body.expiringContracts.length > 0) {
+      res.body.expiringContracts.forEach((contract: any) => {
+        expect(contract).toHaveProperty('contractNumber')
+        expect(contract).toHaveProperty('customerId')
+        expect(contract).toHaveProperty('customerName')
+        expect(contract).toHaveProperty('endDate')
+        expect(contract).toHaveProperty('daysRemaining')
+        expect(typeof contract.daysRemaining).toBe('number')
+        expect(contract.daysRemaining).toBeGreaterThanOrEqual(0)
+        expect(contract.daysRemaining).toBeLessThanOrEqual(30)
+
+        // 確認不包含舊欄位
+        expect(contract).not.toHaveProperty('id')
+        expect(contract).not.toHaveProperty('daysLeft')
       })
     }
+  })
+
+  it('pendingItems 中的每一項都有正確格式', async () => {
+    const res = await request(app)
+      .get('/api/dashboard/stats')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+
+    // 驗證 pendingItems 陣列格式
+    res.body.pendingItems.forEach((item: any) => {
+      expect(item).toHaveProperty('type')
+      expect(item).toHaveProperty('count')
+      expect(item).toHaveProperty('label')
+      expect(item).toHaveProperty('link')
+      expect(typeof item.type).toBe('string')
+      expect(typeof item.count).toBe('number')
+      expect(typeof item.label).toBe('string')
+      expect(typeof item.link).toBe('string')
+    })
   })
 })
 

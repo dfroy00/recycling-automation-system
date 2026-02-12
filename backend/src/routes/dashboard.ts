@@ -45,7 +45,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
   // 合約即將到期提醒（30 天內）
   const thirtyDaysLater = new Date(now)
   thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30)
-  const expiringContracts = await prisma.contract.findMany({
+  const rawExpiringContracts = await prisma.contract.findMany({
     where: {
       status: 'active',
       endDate: { gte: now, lte: thirtyDaysLater },
@@ -56,28 +56,39 @@ router.get('/stats', async (_req: Request, res: Response) => {
     orderBy: { endDate: 'asc' },
   })
 
-  // 計算每個合約距到期的天數
-  const contractAlerts = expiringContracts.map((c) => {
-    const daysLeft = Math.ceil(
+  // 計算每個合約距到期的天數，欄位名稱對齊前端 DashboardStats 型別
+  const expiringContracts = rawExpiringContracts.map((c) => {
+    const daysRemaining = Math.ceil(
       (new Date(c.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     )
     return {
-      id: c.id,
-      contractNumber: c.contractNumber,
       customerId: c.customer.id,
       customerName: c.customer.name,
+      contractNumber: c.contractNumber,
       endDate: c.endDate,
-      daysLeft,
+      daysRemaining,
     }
   })
 
+  // 組合待處理項目清單
+  const pendingItems: { type: string; count: number; label: string; link: string }[] = []
+  if (pendingReviewCount > 0) {
+    pendingItems.push({
+      type: 'statement_review',
+      count: pendingReviewCount,
+      label: '待審核明細',
+      link: '/statements?status=draft',
+    })
+  }
+
   res.json({
-    tripCount,
+    monthlyTrips: tripCount,
     totalReceivable,
     totalPayable,
-    activeCustomerCount,
-    pendingReviewCount,
-    contractAlerts,
+    customerCount: activeCustomerCount,
+    pendingReviews: pendingReviewCount,
+    expiringContracts,
+    pendingItems,
   })
 })
 
