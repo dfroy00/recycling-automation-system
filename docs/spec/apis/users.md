@@ -12,7 +12,9 @@
 | GET | `/api/users/:id` | 詳情 |
 | POST | `/api/users` | 新增 |
 | PATCH | `/api/users/:id` | 更新 |
-| DELETE | `/api/users/:id` | 軟刪除 |
+| PATCH | `/api/users/:id/deactivate` | 停用（設為 inactive） |
+| PATCH | `/api/users/:id/reactivate` | 啟用（恢復 active） |
+| DELETE | `/api/users/:id` | 硬刪除（FK 失敗回 409：「無法刪除：此使用者仍有關聯的審核紀錄」） |
 
 ## POST Request Body
 

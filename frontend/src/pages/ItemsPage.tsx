@@ -3,8 +3,8 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import { useItems, useCreateItem, useUpdateItem, useDeleteItem, useReactivateItem } from '../api/hooks'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useItems, useCreateItem, useUpdateItem, useDeactivateItem, useDeleteItem, useReactivateItem } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Item, ItemFormData } from '../types'
 
@@ -26,6 +26,7 @@ export default function ItemsPage() {
   const { data, isLoading } = useItems({ page, pageSize: 20, category: categoryFilter, status: statusFilter || undefined })
   const createItem = useCreateItem()
   const updateItem = useUpdateItem()
+  const deactivateItem = useDeactivateItem()
   const deleteItem = useDeleteItem()
   const reactivateItem = useReactivateItem()
 
@@ -74,14 +75,14 @@ export default function ItemsPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 220,
       render: (_: unknown, record: Item) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
           {record.status === 'active' ? (
-            <Popconfirm title="確定停用此品項？停用後可重新啟用。" onConfirm={() => deleteItem.mutate(record.id)}>
+            <Popconfirm title="確定停用此品項？停用後可重新啟用。" onConfirm={() => deactivateItem.mutate(record.id)}>
               <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />}>
                 停用
               </Button>
@@ -91,6 +92,11 @@ export default function ItemsPage() {
               啟用
             </Button>
           )}
+          <Popconfirm title="確定刪除此品項？此操作無法復原。" onConfirm={() => deleteItem.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              刪除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -146,12 +152,15 @@ export default function ItemsPage() {
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(item)} />
                   {item.status === 'active' ? (
-                    <Popconfirm title="確定停用此品項？停用後可重新啟用。" onConfirm={() => deleteItem.mutate(item.id)}>
+                    <Popconfirm title="確定停用？" onConfirm={() => deactivateItem.mutate(item.id)}>
                       <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} />
                     </Popconfirm>
                   ) : (
                     <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} onClick={() => reactivateItem.mutate(item.id)} />
                   )}
+                  <Popconfirm title="確定刪除？此操作無法復原。" onConfirm={() => deleteItem.mutate(item.id)}>
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
                 </Space>
               }
             >

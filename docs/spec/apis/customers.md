@@ -12,7 +12,9 @@
 | GET | `/api/customers/:id` | 詳情（include site + active fees） |
 | POST | `/api/customers` | 新增 |
 | PATCH | `/api/customers/:id` | 更新 |
-| DELETE | `/api/customers/:id` | 軟刪除 |
+| PATCH | `/api/customers/:id/deactivate` | 停用（設為 inactive） |
+| PATCH | `/api/customers/:id/reactivate` | 啟用（恢復 active） |
+| DELETE | `/api/customers/:id` | 硬刪除（FK 失敗回 409：「無法刪除：此客戶仍有關聯的合約、車趟或明細」） |
 
 ## POST Request Body
 
@@ -56,7 +58,9 @@
 | GET | `/api/customers/:id/fees` | 列表 |
 | POST | `/api/customers/:id/fees` | 新增 |
 | PATCH | `/api/customers/:cid/fees/:fid` | 更新 |
-| DELETE | `/api/customers/:cid/fees/:fid` | 軟刪除 |
+| PATCH | `/api/customers/:cid/fees/:fid/deactivate` | 停用（設為 inactive） |
+| PATCH | `/api/customers/:cid/fees/:fid/reactivate` | 啟用（恢復 active） |
+| DELETE | `/api/customers/:cid/fees/:fid` | 硬刪除（永久移除） |
 
 ### POST Request Body
 

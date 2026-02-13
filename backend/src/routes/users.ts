@@ -141,6 +141,23 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 })
 
+// PATCH /api/users/:id/deactivate — 停用
+router.patch('/:id/deactivate', async (req: Request, res: Response) => {
+  try {
+    await prisma.user.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'inactive' },
+    })
+    res.json({ message: '已停用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '使用者不存在' })
+      return
+    }
+    throw e
+  }
+})
+
 // PATCH /api/users/:id/reactivate — 啟用（恢復 active）
 router.patch('/:id/reactivate', async (req: Request, res: Response) => {
   try {
@@ -158,17 +175,20 @@ router.patch('/:id/reactivate', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/users/:id — 停用（軟刪除）
+// DELETE /api/users/:id — 硬刪除
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    await prisma.user.update({
+    await prisma.user.delete({
       where: { id: Number(req.params.id) },
-      data: { status: 'inactive' },
     })
-    res.json({ message: '已停用' })
+    res.json({ message: '已刪除' })
   } catch (e: any) {
     if (e.code === 'P2025') {
       res.status(404).json({ error: '使用者不存在' })
+      return
+    }
+    if (e.code === 'P2003') {
+      res.status(409).json({ error: '無法刪除：此使用者仍有關聯的審核紀錄' })
       return
     }
     throw e

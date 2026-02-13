@@ -14,7 +14,9 @@
 | GET | `/api/sites/:id` | 詳情 |
 | POST | `/api/sites` | 新增 |
 | PATCH | `/api/sites/:id` | 更新 |
-| DELETE | `/api/sites/:id` | 軟刪除（設為 inactive） |
+| PATCH | `/api/sites/:id/deactivate` | 停用（設為 inactive） |
+| PATCH | `/api/sites/:id/reactivate` | 啟用（恢復 active） |
+| DELETE | `/api/sites/:id` | 硬刪除（永久移除，FK 失敗回 409） |
 
 **POST Request Body**：
 
@@ -24,13 +26,13 @@
 
 - `name`：必填
 
-**DELETE Response**：
+**PATCH deactivate Response**：`{ "message": "已停用" }`
 
-```json
-{ "message": "已停用" }
-```
+**DELETE Response**：`{ "message": "已刪除" }`
 
-**錯誤**：`409` 名稱已存在
+**錯誤**：
+- `409` 名稱已存在
+- `409`（DELETE）「無法刪除：此站區下仍有關聯資料」
 
 ---
 
@@ -42,7 +44,9 @@
 | GET | `/api/items/:id` | 詳情 |
 | POST | `/api/items` | 新增 |
 | PATCH | `/api/items/:id` | 更新 |
-| DELETE | `/api/items/:id` | 軟刪除 |
+| PATCH | `/api/items/:id/deactivate` | 停用（設為 inactive） |
+| PATCH | `/api/items/:id/reactivate` | 啟用（恢復 active） |
+| DELETE | `/api/items/:id` | 硬刪除（FK 失敗回 409：「無法刪除：此品項仍有關聯的合約或車趟」） |
 
 **POST Request Body**：
 
@@ -62,7 +66,9 @@
 | GET | `/api/business-entities/:id` | 詳情 |
 | POST | `/api/business-entities` | 新增 |
 | PATCH | `/api/business-entities/:id` | 更新 |
-| DELETE | `/api/business-entities/:id` | 軟刪除 |
+| PATCH | `/api/business-entities/:id/deactivate` | 停用（設為 inactive） |
+| PATCH | `/api/business-entities/:id/reactivate` | 啟用（恢復 active） |
+| DELETE | `/api/business-entities/:id` | 硬刪除（FK 失敗回 409：「無法刪除：此行號仍有關聯的客戶或明細」） |
 
 **POST Request Body**：
 

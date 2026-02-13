@@ -3,10 +3,10 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import {
   useBusinessEntities, useCreateBusinessEntity,
-  useUpdateBusinessEntity, useDeleteBusinessEntity, useReactivateBusinessEntity,
+  useUpdateBusinessEntity, useDeactivateBusinessEntity, useDeleteBusinessEntity, useReactivateBusinessEntity,
 } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { BusinessEntity, BusinessEntityFormData } from '../types'
@@ -25,6 +25,7 @@ export default function BusinessEntitiesPage() {
   const { data, isLoading } = useBusinessEntities({ page, pageSize: 20, status: statusFilter || undefined })
   const createEntity = useCreateBusinessEntity()
   const updateEntity = useUpdateBusinessEntity()
+  const deactivateEntity = useDeactivateBusinessEntity()
   const deleteEntity = useDeleteBusinessEntity()
   const reactivateEntity = useReactivateBusinessEntity()
 
@@ -72,7 +73,7 @@ export default function BusinessEntitiesPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 160,
+      width: 220,
       fixed: 'right' as const,
       render: (_: unknown, record: BusinessEntity) => (
         <Space>
@@ -82,7 +83,7 @@ export default function BusinessEntitiesPage() {
           {record.status === 'active' ? (
             <Popconfirm
               title="確定停用此行號？停用後可重新啟用。"
-              onConfirm={() => deleteEntity.mutate(record.id)}
+              onConfirm={() => deactivateEntity.mutate(record.id)}
               getPopupContainer={(trigger) => trigger.parentElement || document.body}
             >
               <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />}>
@@ -94,6 +95,15 @@ export default function BusinessEntitiesPage() {
               啟用
             </Button>
           )}
+          <Popconfirm
+            title="確定刪除此行號？此操作無法復原。"
+            onConfirm={() => deleteEntity.mutate(record.id)}
+            getPopupContainer={(trigger) => trigger.parentElement || document.body}
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              刪除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -141,12 +151,15 @@ export default function BusinessEntitiesPage() {
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(entity)} />
                   {entity.status === 'active' ? (
-                    <Popconfirm title="確定停用此行號？停用後可重新啟用。" onConfirm={() => deleteEntity.mutate(entity.id)}>
+                    <Popconfirm title="確定停用？" onConfirm={() => deactivateEntity.mutate(entity.id)}>
                       <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} />
                     </Popconfirm>
                   ) : (
                     <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} onClick={() => reactivateEntity.mutate(entity.id)} />
                   )}
+                  <Popconfirm title="確定刪除？此操作無法復原。" onConfirm={() => deleteEntity.mutate(entity.id)}>
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
                 </Space>
               }
             >

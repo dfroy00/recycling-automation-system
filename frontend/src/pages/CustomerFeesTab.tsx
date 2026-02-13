@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Popconfirm, Tag } from 'antd'
-import { PlusOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import { useCustomerFees, useCreateCustomerFee, useUpdateCustomerFee, useDeleteCustomerFee, useReactivateCustomerFee } from '../api/hooks'
+import { PlusOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useCustomerFees, useCreateCustomerFee, useUpdateCustomerFee, useDeactivateCustomerFee, useDeleteCustomerFee, useReactivateCustomerFee } from '../api/hooks'
 import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { CustomerFee, CustomerFeeFormData } from '../types'
@@ -24,6 +24,7 @@ export default function CustomerFeesTab({ customerId }: Props) {
   const { data: fees, isLoading } = useCustomerFees(customerId)
   const createFee = useCreateCustomerFee(customerId)
   const updateFee = useUpdateCustomerFee(customerId)
+  const deactivateFee = useDeactivateCustomerFee(customerId)
   const deleteFee = useDeleteCustomerFee(customerId)
   const reactivateFee = useReactivateCustomerFee(customerId)
 
@@ -86,17 +87,20 @@ export default function CustomerFeesTab({ customerId }: Props) {
     ...(canEdit ? [{
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 180,
       render: (_: unknown, record: CustomerFee) => (
         <Space>
           <Button type="link" size="small" onClick={() => openFeeModal(record)}>編輯</Button>
           {record.status === 'active' ? (
-            <Popconfirm title="確定停用此附加費用？停用後可重新啟用。" onConfirm={() => deleteFee.mutate(record.id)}>
+            <Popconfirm title="確定停用此附加費用？停用後可重新啟用。" onConfirm={() => deactivateFee.mutate(record.id)}>
               <Button type="link" size="small" style={{ color: '#faad14' }}>停用</Button>
             </Popconfirm>
           ) : (
             <Button type="link" size="small" style={{ color: '#52c41a' }} onClick={() => reactivateFee.mutate(record.id)}>啟用</Button>
           )}
+          <Popconfirm title="確定刪除此附加費用？此操作無法復原。" onConfirm={() => deleteFee.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>刪除</Button>
+          </Popconfirm>
         </Space>
       ),
     }] : []),

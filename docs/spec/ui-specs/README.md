@@ -78,7 +78,7 @@
 ### 停用（軟刪除實體）
 
 - **適用實體**：Site, Item, BusinessEntity, Customer, CustomerFee, User
-- **後端行為**：`DELETE` API 將 `status` 設為 `inactive`
+- **後端行為**：`PATCH /:id/deactivate` API 將 `status` 設為 `inactive`
 - **按鈕樣式**：`StopOutlined` 圖示 +「停用」文字，`warning` 色（橘色）
 - **確認文字**：「確定停用此 {實體名稱}？停用後可重新啟用。」
 - **成功訊息**：「{實體名稱} 已停用」
@@ -93,8 +93,8 @@
 
 ### 刪除（硬刪除實體）
 
-- **適用實體**：Holiday, ContractItem, Trip, TripItem
-- **後端行為**：`DELETE` API 從資料庫永久移除
+- **適用實體**：Site, Item, BusinessEntity, Customer, CustomerFee, User, Holiday, ContractItem, Trip, TripItem
+- **後端行為**：`DELETE` API 從資料庫永久移除（FK 約束失敗時回傳 409 + 友善訊息）
 - **按鈕樣式**：`DeleteOutlined` 圖示 +「刪除」文字，`danger` 色（紅色）
 - **確認文字**：「確定刪除此 {實體名稱}？此操作無法復原。」
 - **成功訊息**：「{實體名稱} 已刪除」
@@ -127,9 +127,9 @@
 | 查詢單筆 | `use{Entity}(id)` | `useCustomer(1)` |
 | 新增 | `useCreate{Entity}()` | `useCreateSite()` |
 | 更新 | `useUpdate{Entity}()` | `useUpdateSite()` |
-| 停用 | `useDelete{Entity}()` | `useDeleteSite()`（軟刪除實體） |
+| 停用 | `useDeactivate{Entity}()` | `useDeactivateSite()`（軟刪除實體） |
 | 啟用 | `useReactivate{Entity}()` | `useReactivateSite()`（重新啟用） |
-| 刪除 | `useDelete{Entity}()` | `useDeleteHoliday()`（硬刪除實體） |
+| 刪除 | `useDelete{Entity}()` | `useDeleteSite()`（硬刪除，含 FK 約束處理） |
 | 終止 | `useDelete{Entity}()` | `useDeleteContract()`（合約終止） |
 
 **快取失效策略**：mutation 成功後 invalidate 對應的 queryKey。

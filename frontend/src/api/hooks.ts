@@ -91,6 +91,22 @@ export function useUpdateSite() {
   })
 }
 
+export function useDeactivateSite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/sites/${id}/deactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sites'] })
+      message.success('站區已停用')
+    },
+    onError: () => {
+      message.error('站區停用失敗')
+    },
+  })
+}
+
 export function useDeleteSite() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -99,10 +115,10 @@ export function useDeleteSite() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sites'] })
-      message.success('站區已停用')
+      message.success('站區已刪除')
     },
-    onError: () => {
-      message.error('站區停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '站區刪除失敗')
     },
   })
 }
@@ -170,6 +186,22 @@ export function useUpdateItem() {
   })
 }
 
+export function useDeactivateItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/items/${id}/deactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      message.success('品項已停用')
+    },
+    onError: () => {
+      message.error('品項停用失敗')
+    },
+  })
+}
+
 export function useDeleteItem() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -178,10 +210,10 @@ export function useDeleteItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
-      message.success('品項已停用')
+      message.success('品項已刪除')
     },
-    onError: () => {
-      message.error('品項停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '品項刪除失敗')
     },
   })
 }
@@ -249,6 +281,22 @@ export function useUpdateBusinessEntity() {
   })
 }
 
+export function useDeactivateBusinessEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/business-entities/${id}/deactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
+      message.success('行號已停用')
+    },
+    onError: () => {
+      message.error('行號停用失敗')
+    },
+  })
+}
+
 export function useDeleteBusinessEntity() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -257,10 +305,10 @@ export function useDeleteBusinessEntity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
-      message.success('行號已停用')
+      message.success('行號已刪除')
     },
-    onError: () => {
-      message.error('行號停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '行號刪除失敗')
     },
   })
 }
@@ -328,6 +376,22 @@ export function useUpdateUser() {
   })
 }
 
+export function useDeactivateUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/users/${id}/deactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      message.success('使用者已停用')
+    },
+    onError: () => {
+      message.error('使用者停用失敗')
+    },
+  })
+}
+
 export function useDeleteUser() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -336,10 +400,10 @@ export function useDeleteUser() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      message.success('使用者已停用')
+      message.success('使用者已刪除')
     },
-    onError: () => {
-      message.error('使用者停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '使用者刪除失敗')
     },
   })
 }
@@ -480,6 +544,22 @@ export function useUpdateCustomer() {
   })
 }
 
+export function useDeactivateCustomer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/customers/${id}/deactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      message.success('客戶已停用')
+    },
+    onError: () => {
+      message.error('客戶停用失敗')
+    },
+  })
+}
+
 export function useDeleteCustomer() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -488,10 +568,10 @@ export function useDeleteCustomer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      message.success('客戶已停用')
+      message.success('客戶已刪除')
     },
-    onError: () => {
-      message.error('客戶停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '客戶刪除失敗')
     },
   })
 }
@@ -559,6 +639,22 @@ export function useUpdateCustomerFee(customerId: number) {
   })
 }
 
+export function useDeactivateCustomerFee(customerId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (feeId: number) => {
+      await apiClient.patch(`/customers/${customerId}/fees/${feeId}/deactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', customerId, 'fees'] })
+      message.success('附加費用已停用')
+    },
+    onError: () => {
+      message.error('附加費用停用失敗')
+    },
+  })
+}
+
 export function useDeleteCustomerFee(customerId: number) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -567,10 +663,10 @@ export function useDeleteCustomerFee(customerId: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', customerId, 'fees'] })
-      message.success('附加費用已停用')
+      message.success('附加費用已刪除')
     },
-    onError: () => {
-      message.error('附加費用停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '附加費用刪除失敗')
     },
   })
 }

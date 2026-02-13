@@ -203,6 +203,23 @@ router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), asyn
   }
 })
 
+// PATCH /api/customers/:id/deactivate — 停用 — 僅 super_admin 和 site_manager
+router.patch('/:id/deactivate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
+  try {
+    await prisma.customer.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'inactive' },
+    })
+    res.json({ message: '已停用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '客戶不存在' })
+      return
+    }
+    throw e
+  }
+})
+
 // PATCH /api/customers/:id/reactivate — 啟用（恢復 active）— 僅 super_admin 和 site_manager
 router.patch('/:id/reactivate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
@@ -220,17 +237,20 @@ router.patch('/:id/reactivate', authorize('super_admin', 'site_manager'), siteSc
   }
 })
 
-// DELETE /api/customers/:id — 停用（軟刪除）— 僅 super_admin 和 site_manager
+// DELETE /api/customers/:id — 硬刪除 — 僅 super_admin 和 site_manager
 router.delete('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
-    await prisma.customer.update({
+    await prisma.customer.delete({
       where: { id: Number(req.params.id) },
-      data: { status: 'inactive' },
     })
-    res.json({ message: '已停用' })
+    res.json({ message: '已刪除' })
   } catch (e: any) {
     if (e.code === 'P2025') {
       res.status(404).json({ error: '客戶不存在' })
+      return
+    }
+    if (e.code === 'P2003') {
+      res.status(409).json({ error: '無法刪除：此客戶仍有關聯的合約、車趟或明細' })
       return
     }
     throw e
@@ -330,6 +350,23 @@ router.patch('/:cid/fees/:fid', authorize('super_admin', 'site_manager'), siteSc
   }
 })
 
+// PATCH /api/customers/:cid/fees/:fid/deactivate — 停用附加費用 — 僅 super_admin 和 site_manager
+router.patch('/:cid/fees/:fid/deactivate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
+  try {
+    await prisma.customerFee.update({
+      where: { id: Number(req.params.fid) },
+      data: { status: 'inactive' },
+    })
+    res.json({ message: '已停用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '附加費用不存在' })
+      return
+    }
+    throw e
+  }
+})
+
 // PATCH /api/customers/:cid/fees/:fid/reactivate — 啟用附加費用 — 僅 super_admin 和 site_manager
 router.patch('/:cid/fees/:fid/reactivate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
@@ -347,14 +384,13 @@ router.patch('/:cid/fees/:fid/reactivate', authorize('super_admin', 'site_manage
   }
 })
 
-// DELETE /api/customers/:cid/fees/:fid — 停用附加費用（軟刪除）— 僅 super_admin 和 site_manager
+// DELETE /api/customers/:cid/fees/:fid — 硬刪除附加費用 — 僅 super_admin 和 site_manager
 router.delete('/:cid/fees/:fid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
-    await prisma.customerFee.update({
+    await prisma.customerFee.delete({
       where: { id: Number(req.params.fid) },
-      data: { status: 'inactive' },
     })
-    res.json({ message: '已停用' })
+    res.json({ message: '已刪除' })
   } catch (e: any) {
     if (e.code === 'P2025') {
       res.status(404).json({ error: '附加費用不存在' })

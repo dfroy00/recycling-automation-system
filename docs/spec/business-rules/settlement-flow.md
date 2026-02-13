@@ -35,22 +35,38 @@
 
 ## 軟刪除策略
 
-以下實體使用軟刪除（`status: 'inactive'`），API 的 DELETE 方法實際上是更新狀態：
+以下實體支援軟刪除（停用/啟用）**和**硬刪除（永久移除）：
 - Site, Item, Customer, CustomerFee, BusinessEntity, User
+- 停用：`PATCH /:id/deactivate` 將 `status` 設為 `inactive`
+- 啟用：`PATCH /:id/reactivate` 將 `status` 設為 `active`
+- 刪除：`DELETE /:id` 從資料庫永久移除（FK 約束失敗回傳 409）
 
-以下實體使用硬刪除：
+以下實體僅使用硬刪除：
 - Trip（先刪 TripItems）, TripItem, ContractItem, Holiday
 
 合約使用特殊處理：DELETE 設為 `terminated` 狀態。
+
+### FK 約束處理
+
+硬刪除時若有 FK 依賴，後端回傳 `409` + 友善中文訊息：
+
+| 實體 | FK 依賴 | 刪除失敗訊息 |
+|------|---------|------------|
+| Site | Customer, Trip, User | 「無法刪除：此站區下仍有關聯資料」 |
+| Item | ContractItem, TripItem | 「無法刪除：此品項仍有關聯的合約或車趟」 |
+| BusinessEntity | Customer, Statement | 「無法刪除：此行號仍有關聯的客戶或明細」 |
+| Customer | Contract, Fee, Trip, Statement | 「無法刪除：此客戶仍有關聯的合約、車趟或明細」 |
+| CustomerFee | — | 可直接刪除 |
+| User | Statement (reviewer/voider) | 「無法刪除：此使用者仍有關聯的審核紀錄」 |
 
 ### 前端 UX 對應
 
 | 後端行為 | 前端操作 | 按鈕樣式 | 確認文字模板 |
 |---------|---------|---------|------------|
-| 軟刪除（inactive） | **停用** | `StopOutlined` warning 色 | 「確定停用此 X？停用後可重新啟用。」 |
-| 重新啟用（active） | **啟用** | `CheckCircleOutlined` 綠色 | 無需確認 |
-| 硬刪除（DELETE） | **刪除** | `DeleteOutlined` danger 色 | 「確定刪除此 X？此操作無法復原。」 |
-| 終止（terminated） | **終止** | `CloseCircleOutlined` danger 色 | 「確定終止此合約？終止後無法恢復。」 |
+| 停用（`PATCH deactivate`） | **停用** | `StopOutlined` warning 色 | 「確定停用此 X？停用後可重新啟用。」 |
+| 啟用（`PATCH reactivate`） | **啟用** | `CheckCircleOutlined` 綠色 | 無需確認 |
+| 硬刪除（`DELETE`） | **刪除** | `DeleteOutlined` danger 色 | 「確定刪除此 X？此操作無法復原。」 |
+| 終止（`DELETE` contract） | **終止** | `CloseCircleOutlined` danger 色 | 「確定終止此合約？終止後無法恢復。」 |
 
 詳見 [操作按鈕語意規範](../ui-specs/README.md#操作按鈕語意規範)。
 

@@ -84,6 +84,23 @@ router.patch('/:id', authorize('super_admin'), async (req: Request, res: Respons
   }
 })
 
+// PATCH /api/sites/:id/deactivate — 停用 — 僅 super_admin
+router.patch('/:id/deactivate', authorize('super_admin'), async (req: Request, res: Response) => {
+  try {
+    await prisma.site.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'inactive' },
+    })
+    res.json({ message: '已停用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '站區不存在' })
+      return
+    }
+    throw e
+  }
+})
+
 // PATCH /api/sites/:id/reactivate — 啟用（恢復 active）— 僅 super_admin
 router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
@@ -101,17 +118,20 @@ router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, r
   }
 })
 
-// DELETE /api/sites/:id — 停用（軟刪除）— 僅 super_admin
+// DELETE /api/sites/:id — 硬刪除 — 僅 super_admin
 router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
-    await prisma.site.update({
+    await prisma.site.delete({
       where: { id: Number(req.params.id) },
-      data: { status: 'inactive' },
     })
-    res.json({ message: '已停用' })
+    res.json({ message: '已刪除' })
   } catch (e: any) {
     if (e.code === 'P2025') {
       res.status(404).json({ error: '站區不存在' })
+      return
+    }
+    if (e.code === 'P2003') {
+      res.status(409).json({ error: '無法刪除：此站區下仍有關聯資料' })
       return
     }
     throw e

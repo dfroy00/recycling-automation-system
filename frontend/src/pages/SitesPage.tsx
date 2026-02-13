@@ -3,8 +3,8 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import { useSites, useCreateSite, useUpdateSite, useDeleteSite, useReactivateSite } from '../api/hooks'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useSites, useCreateSite, useUpdateSite, useDeactivateSite, useDeleteSite, useReactivateSite } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Site, SiteFormData } from '../types'
 
@@ -21,6 +21,7 @@ export default function SitesPage() {
   const { data, isLoading } = useSites({ page, pageSize: 20, status: statusFilter || undefined })
   const createSite = useCreateSite()
   const updateSite = useUpdateSite()
+  const deactivateSite = useDeactivateSite()
   const deleteSite = useDeleteSite()
   const reactivateSite = useReactivateSite()
 
@@ -67,14 +68,14 @@ export default function SitesPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 220,
       render: (_: unknown, record: Site) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
           {record.status === 'active' ? (
-            <Popconfirm title="確定停用此站區？停用後可重新啟用。" onConfirm={() => deleteSite.mutate(record.id)}>
+            <Popconfirm title="確定停用此站區？停用後可重新啟用。" onConfirm={() => deactivateSite.mutate(record.id)}>
               <Button type="link" size="small" style={{ color: '#faad14' }} icon={<StopOutlined />}>
                 停用
               </Button>
@@ -84,6 +85,11 @@ export default function SitesPage() {
               啟用
             </Button>
           )}
+          <Popconfirm title="確定刪除此站區？此操作無法復原。" onConfirm={() => deleteSite.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              刪除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -131,12 +137,15 @@ export default function SitesPage() {
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(site)} />
                   {site.status === 'active' ? (
-                    <Popconfirm title="確定停用？" onConfirm={() => deleteSite.mutate(site.id)}>
+                    <Popconfirm title="確定停用？" onConfirm={() => deactivateSite.mutate(site.id)}>
                       <Button type="link" size="small" style={{ color: '#faad14' }} icon={<StopOutlined />} />
                     </Popconfirm>
                   ) : (
                     <Button type="link" size="small" style={{ color: '#52c41a' }} icon={<CheckCircleOutlined />} onClick={() => reactivateSite.mutate(site.id)} />
                   )}
+                  <Popconfirm title="確定刪除？此操作無法復原。" onConfirm={() => deleteSite.mutate(site.id)}>
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
                 </Space>
               }
             >

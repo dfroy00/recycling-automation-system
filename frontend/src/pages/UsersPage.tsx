@@ -3,8 +3,8 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useReactivateUser } from '../api/hooks'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useUsers, useCreateUser, useUpdateUser, useDeactivateUser, useDeleteUser, useReactivateUser } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { User, UserFormData } from '../types'
 
@@ -21,6 +21,7 @@ export default function UsersPage() {
   const { data, isLoading } = useUsers()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
+  const deactivateUser = useDeactivateUser()
   const deleteUser = useDeleteUser()
   const reactivateUser = useReactivateUser()
 
@@ -84,14 +85,14 @@ export default function UsersPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 220,
       render: (_: unknown, record: User) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
           {record.status === 'active' ? (
-            <Popconfirm title="確定停用此使用者？停用後可重新啟用。" onConfirm={() => deleteUser.mutate(record.id)}>
+            <Popconfirm title="確定停用此使用者？停用後可重新啟用。" onConfirm={() => deactivateUser.mutate(record.id)}>
               <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }}>
                 停用
               </Button>
@@ -101,6 +102,11 @@ export default function UsersPage() {
               啟用
             </Button>
           )}
+          <Popconfirm title="確定刪除此使用者？此操作無法復原。" onConfirm={() => deleteUser.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              刪除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -143,12 +149,15 @@ export default function UsersPage() {
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(user)} />
                   {user.status === 'active' ? (
-                    <Popconfirm title="確定停用此使用者？停用後可重新啟用。" onConfirm={() => deleteUser.mutate(user.id)}>
+                    <Popconfirm title="確定停用？" onConfirm={() => deactivateUser.mutate(user.id)}>
                       <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }} />
                     </Popconfirm>
                   ) : (
                     <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }} onClick={() => reactivateUser.mutate(user.id)} />
                   )}
+                  <Popconfirm title="確定刪除？此操作無法復原。" onConfirm={() => deleteUser.mutate(user.id)}>
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
                 </Space>
               }
             >

@@ -6,13 +6,14 @@
 
 ## CustomersPage `/customers`
 
-- 資料表格：名稱、站區、類型、合約摘要、結算方式、狀態、操作（停用 or 啟用）
+- 資料表格：名稱、站區、類型、合約摘要、結算方式、狀態、操作（停用 or 啟用 / 刪除）
 - 篩選：站區下拉、類型篩選、名稱搜尋
 - 狀態篩選器：啟用中（預設）/ 已停用 / 全部
 - 客戶名稱為超連結，點擊導航到 `/customers/:id` 詳情頁
 - 「新增客戶」按鈕 → 導航到 `/customers/new`
-- 停用 → Popconfirm「確定停用此客戶？停用後可重新啟用。」→ 軟刪除（`StopOutlined` warning 色）
-- 啟用 → 已停用項目顯示「啟用」按鈕（`CheckCircleOutlined` 綠色）→ `PATCH` 恢復 active
+- 停用 → Popconfirm「確定停用此客戶？停用後可重新啟用。」→ `PATCH deactivate`（`StopOutlined` warning 色）
+- 啟用 → 已停用項目顯示「啟用」按鈕（`CheckCircleOutlined` 綠色）→ `PATCH reactivate` 恢復 active
+- 刪除 → Popconfirm「確定刪除此客戶？此操作無法復原。」→ `DELETE` 硬刪除（`DeleteOutlined` danger 色）
 - **不使用 Modal 編輯**，所有編輯在詳情頁完成
 
 ## CustomerDetailPage `/customers/:id`
@@ -44,9 +45,10 @@
 
 ## CustomerFeesTab（附加費用 Tab）
 
-- 費用列表：費用名稱、金額、狀態、操作（編輯 / 停用 or 啟用）
-- 停用 → Popconfirm「確定停用此附加費用？停用後可重新啟用。」（`StopOutlined` warning 色）
-- 啟用 → 已停用項目顯示「啟用」按鈕（`CheckCircleOutlined` 綠色）→ `PATCH` 恢復 active
+- 費用列表：費用名稱、金額、狀態、操作（編輯 / 停用 or 啟用 / 刪除）
+- 停用 → Popconfirm「確定停用此附加費用？停用後可重新啟用。」→ `PATCH deactivate`（`StopOutlined` warning 色）
+- 啟用 → 已停用項目顯示「啟用」按鈕（`CheckCircleOutlined` 綠色）→ `PATCH reactivate` 恢復 active
+- 刪除 → Popconfirm「確定刪除此附加費用？此操作無法復原。」→ `DELETE` 硬刪除（`DeleteOutlined` danger 色）
 
 ## ContractsPage `/contracts`（合約總覽，僅 super_admin 可見）
 

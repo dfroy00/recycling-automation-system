@@ -2,9 +2,9 @@ import { useState } from 'react'
 import {
   Table, Card, Button, Select, Space, Popconfirm, Typography, List, Tag, Input,
 } from 'antd'
-import { PlusOutlined, StopOutlined, CheckCircleOutlined, SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
-import { useCustomers, useDeleteCustomer, useReactivateCustomer, useSites } from '../api/hooks'
+import { useCustomers, useDeactivateCustomer, useDeleteCustomer, useReactivateCustomer, useSites } from '../api/hooks'
 import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Customer } from '../types'
@@ -23,6 +23,7 @@ export default function CustomersPage() {
 
   const { data, isLoading } = useCustomers({ page, pageSize: 20, search, siteId: siteFilter, type: typeFilter, status: statusFilter || undefined })
   const { data: sitesData } = useSites({ all: true })
+  const deactivateCustomer = useDeactivateCustomer()
   const deleteCustomer = useDeleteCustomer()
   const reactivateCustomer = useReactivateCustomer()
 
@@ -86,19 +87,26 @@ export default function CustomersPage() {
     ...(canEdit ? [{
       title: '操作',
       key: 'actions',
-      width: 80,
+      width: 160,
       render: (_: unknown, record: Customer) => (
-        record.status === 'active' ? (
-          <Popconfirm title="確定停用此客戶？停用後可重新啟用。" onConfirm={() => deleteCustomer.mutate(record.id)}>
-            <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }}>
-              停用
+        <Space>
+          {record.status === 'active' ? (
+            <Popconfirm title="確定停用此客戶？停用後可重新啟用。" onConfirm={() => deactivateCustomer.mutate(record.id)}>
+              <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }}>
+                停用
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }} onClick={() => reactivateCustomer.mutate(record.id)}>
+              啟用
+            </Button>
+          )}
+          <Popconfirm title="確定刪除此客戶？此操作無法復原。" onConfirm={() => deleteCustomer.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              刪除
             </Button>
           </Popconfirm>
-        ) : (
-          <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }} onClick={() => reactivateCustomer.mutate(record.id)}>
-            啟用
-          </Button>
-        )
+        </Space>
       ),
     }] : []),
   ]
@@ -173,22 +181,33 @@ export default function CustomersPage() {
               onClick={() => navigate(`/customers/${customer.id}`)}
               extra={
                 canEdit && (
-                  customer.status === 'active' ? (
+                  <Space>
+                    {customer.status === 'active' ? (
+                      <Popconfirm
+                        title="確定停用？"
+                        onConfirm={(e) => { e?.stopPropagation(); deactivateCustomer.mutate(customer.id) }}
+                      >
+                        <Button
+                          type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </Popconfirm>
+                    ) : (
+                      <Button
+                        type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }}
+                        onClick={(e) => { e.stopPropagation(); reactivateCustomer.mutate(customer.id) }}
+                      />
+                    )}
                     <Popconfirm
-                      title="確定停用此客戶？停用後可重新啟用。"
+                      title="確定刪除？此操作無法復原。"
                       onConfirm={(e) => { e?.stopPropagation(); deleteCustomer.mutate(customer.id) }}
                     >
                       <Button
-                        type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }}
+                        type="link" size="small" danger icon={<DeleteOutlined />}
                         onClick={(e) => e.stopPropagation()}
                       />
                     </Popconfirm>
-                  ) : (
-                    <Button
-                      type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }}
-                      onClick={(e) => { e.stopPropagation(); reactivateCustomer.mutate(customer.id) }}
-                    />
-                  )
+                  </Space>
                 )
               }
             >
