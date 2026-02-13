@@ -59,7 +59,7 @@
 
 ### 角色動態控制
 
-- `site_staff`：所有寫入按鈕（新增/編輯/刪除/審核）隱藏
+- `site_staff`：所有寫入按鈕（新增/編輯/停用/啟用/刪除/終止/審核）隱藏
 - `site_manager`：主檔管理（站區/品項/行號/假日）寫入按鈕隱藏
 - `super_admin`：全部功能可見
 
@@ -71,6 +71,52 @@
 | 768~991px | 隱藏次要欄位 + 水平捲動 |
 | <768px | 切換為卡片列表模式 |
 
+## 操作按鈕語意規範
+
+前端操作按鈕必須精確對應後端行為，分為三種語意：
+
+### 停用（軟刪除實體）
+
+- **適用實體**：Site, Item, BusinessEntity, Customer, CustomerFee, User
+- **後端行為**：`DELETE` API 將 `status` 設為 `inactive`
+- **按鈕樣式**：`StopOutlined` 圖示 +「停用」文字，`warning` 色（橘色）
+- **確認文字**：「確定停用此 {實體名稱}？停用後可重新啟用。」
+- **成功訊息**：「{實體名稱} 已停用」
+
+### 啟用（重新啟用已停用實體）
+
+- **適用實體**：與停用相同
+- **後端行為**：`PATCH` API 將 `status` 設為 `active`
+- **按鈕樣式**：`CheckCircleOutlined` 圖示 +「啟用」文字，綠色
+- **成功訊息**：「{實體名稱} 已啟用」
+- **顯示條件**：僅在已停用（`status = inactive`）的項目上顯示
+
+### 刪除（硬刪除實體）
+
+- **適用實體**：Holiday, ContractItem, Trip, TripItem
+- **後端行為**：`DELETE` API 從資料庫永久移除
+- **按鈕樣式**：`DeleteOutlined` 圖示 +「刪除」文字，`danger` 色（紅色）
+- **確認文字**：「確定刪除此 {實體名稱}？此操作無法復原。」
+- **成功訊息**：「{實體名稱} 已刪除」
+
+### 終止（合約專用）
+
+- **適用實體**：Contract
+- **後端行為**：`DELETE` API 將 `status` 設為 `terminated`
+- **按鈕樣式**：`CloseCircleOutlined` 圖示 +「終止」文字，`danger` 色（紅色）
+- **確認文字**：「確定終止此合約？終止後無法恢復。」
+- **成功訊息**：「合約已終止」
+
+### 狀態篩選器
+
+支援軟刪除的列表頁（Sites, Items, BusinessEntities, Customers, Users）需新增狀態篩選器：
+
+| 選項 | 值 | 說明 |
+|------|------|------|
+| 啟用中 | `active` | 預設選項，僅顯示啟用中的項目 |
+| 已停用 | `inactive` | 僅顯示已停用的項目 |
+| 全部 | 不傳 `status` | 顯示所有項目 |
+
 ## 前端 API Hook 命名慣例
 
 所有 API 呼叫封裝為 React Query hooks，命名規則：
@@ -81,7 +127,10 @@
 | 查詢單筆 | `use{Entity}(id)` | `useCustomer(1)` |
 | 新增 | `useCreate{Entity}()` | `useCreateSite()` |
 | 更新 | `useUpdate{Entity}()` | `useUpdateSite()` |
-| 刪除 | `useDelete{Entity}()` | `useDeleteSite()` |
+| 停用 | `useDelete{Entity}()` | `useDeleteSite()`（軟刪除實體） |
+| 啟用 | `useReactivate{Entity}()` | `useReactivateSite()`（重新啟用） |
+| 刪除 | `useDelete{Entity}()` | `useDeleteHoliday()`（硬刪除實體） |
+| 終止 | `useDelete{Entity}()` | `useDeleteContract()`（合約終止） |
 
 **快取失效策略**：mutation 成功後 invalidate 對應的 queryKey。
 

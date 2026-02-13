@@ -85,7 +85,24 @@ router.patch('/:id', authorize('super_admin'), async (req: Request, res: Respons
   }
 })
 
-// DELETE /api/items/:id — 刪除（軟刪除）— 僅 super_admin
+// PATCH /api/items/:id/reactivate — 啟用（恢復 active）— 僅 super_admin
+router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, res: Response) => {
+  try {
+    await prisma.item.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'active' },
+    })
+    res.json({ message: '已啟用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '品項不存在' })
+      return
+    }
+    throw e
+  }
+})
+
+// DELETE /api/items/:id — 停用（軟刪除）— 僅 super_admin
 router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
     await prisma.item.update({

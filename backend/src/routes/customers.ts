@@ -203,7 +203,24 @@ router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), asyn
   }
 })
 
-// DELETE /api/customers/:id — 僅 super_admin 和 site_manager
+// PATCH /api/customers/:id/reactivate — 啟用（恢復 active）— 僅 super_admin 和 site_manager
+router.patch('/:id/reactivate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
+  try {
+    await prisma.customer.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'active' },
+    })
+    res.json({ message: '已啟用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '客戶不存在' })
+      return
+    }
+    throw e
+  }
+})
+
+// DELETE /api/customers/:id — 停用（軟刪除）— 僅 super_admin 和 site_manager
 router.delete('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     await prisma.customer.update({
@@ -313,7 +330,24 @@ router.patch('/:cid/fees/:fid', authorize('super_admin', 'site_manager'), siteSc
   }
 })
 
-// DELETE /api/customers/:cid/fees/:fid — 僅 super_admin 和 site_manager
+// PATCH /api/customers/:cid/fees/:fid/reactivate — 啟用附加費用 — 僅 super_admin 和 site_manager
+router.patch('/:cid/fees/:fid/reactivate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
+  try {
+    await prisma.customerFee.update({
+      where: { id: Number(req.params.fid) },
+      data: { status: 'active' },
+    })
+    res.json({ message: '已啟用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '附加費用不存在' })
+      return
+    }
+    throw e
+  }
+})
+
+// DELETE /api/customers/:cid/fees/:fid — 停用附加費用（軟刪除）— 僅 super_admin 和 site_manager
 router.delete('/:cid/fees/:fid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     await prisma.customerFee.update({

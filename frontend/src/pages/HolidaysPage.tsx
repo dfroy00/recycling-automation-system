@@ -71,7 +71,7 @@ export default function HolidaysPage() {
       key: 'actions',
       width: 80,
       render: (_: unknown, record: Holiday) => (
-        <Popconfirm title="確定刪除此假日？" onConfirm={() => deleteHoliday.mutate(record.id)}>
+        <Popconfirm title="確定刪除此假日？此操作無法復原。" onConfirm={() => deleteHoliday.mutate(record.id)}>
           <Button type="link" size="small" danger icon={<DeleteOutlined />}>
             刪除
           </Button>
@@ -115,7 +115,7 @@ export default function HolidaysPage() {
               size="small"
               style={{ marginBottom: 8 }}
               extra={
-                <Popconfirm title="確定刪除？" onConfirm={() => deleteHoliday.mutate(holiday.id)}>
+                <Popconfirm title="確定刪除此假日？此操作無法復原。" onConfirm={() => deleteHoliday.mutate(holiday.id)}>
                   <Button type="link" size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               }

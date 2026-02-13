@@ -3,8 +3,8 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../api/hooks'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useReactivateUser } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { User, UserFormData } from '../types'
 
@@ -14,6 +14,7 @@ export default function UsersPage() {
   const { isMobile } = useResponsive()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('active')
   const [form] = Form.useForm<UserFormData>()
 
   // 後端回傳純陣列，無分頁
@@ -21,6 +22,11 @@ export default function UsersPage() {
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deleteUser = useDeleteUser()
+  const reactivateUser = useReactivateUser()
+
+  // 前端篩選狀態
+  const users = data ?? []
+  const filteredUsers = statusFilter ? users.filter(u => u.status === statusFilter) : users
 
   // 開啟新增/編輯 Modal
   const openModal = (user?: User) => {
@@ -78,17 +84,23 @@ export default function UsersPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 150,
       render: (_: unknown, record: User) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此使用者？" onConfirm={() => deleteUser.mutate(record.id)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              刪除
+          {record.status === 'active' ? (
+            <Popconfirm title="確定停用此使用者？停用後可重新啟用。" onConfirm={() => deleteUser.mutate(record.id)}>
+              <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }}>
+                停用
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }} onClick={() => reactivateUser.mutate(record.id)}>
+              啟用
             </Button>
-          </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -103,11 +115,25 @@ export default function UsersPage() {
         </Button>
       </div>
 
+      {/* 狀態篩選 */}
+      <div style={{ marginBottom: 16 }}>
+        <Select
+          value={statusFilter}
+          onChange={(val) => setStatusFilter(val)}
+          style={{ width: 120 }}
+          options={[
+            { value: 'active', label: '啟用中' },
+            { value: 'inactive', label: '已停用' },
+            { value: '', label: '全部' },
+          ]}
+        />
+      </div>
+
       {/* 桌面：表格 / 手機：卡片 */}
       {isMobile ? (
         <List
           loading={isLoading}
-          dataSource={data ?? []}
+          dataSource={filteredUsers}
           pagination={{ pageSize: 20 }}
           renderItem={(user: User) => (
             <Card
@@ -116,9 +142,13 @@ export default function UsersPage() {
               extra={
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(user)} />
-                  <Popconfirm title="確定刪除？" onConfirm={() => deleteUser.mutate(user.id)}>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  {user.status === 'active' ? (
+                    <Popconfirm title="確定停用此使用者？停用後可重新啟用。" onConfirm={() => deleteUser.mutate(user.id)}>
+                      <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} style={{ color: '#faad14' }} />
+                    </Popconfirm>
+                  ) : (
+                    <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} style={{ color: '#52c41a' }} onClick={() => reactivateUser.mutate(user.id)} />
+                  )}
                 </Space>
               }
             >
@@ -136,7 +166,7 @@ export default function UsersPage() {
       ) : (
         <Table
           columns={columns}
-          dataSource={data ?? []}
+          dataSource={filteredUsers}
           rowKey="id"
           loading={isLoading}
           pagination={{ pageSize: 20 }}

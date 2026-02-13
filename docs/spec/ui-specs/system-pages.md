@@ -18,15 +18,19 @@
 
 ## UsersPage `/users`（僅 super_admin 可見）
 
-- 資料表格：帳號、姓名、Email、角色、所屬站區、狀態、操作
+- 資料表格：帳號、姓名、Email、角色、所屬站區、狀態、操作（編輯 / 停用 or 啟用）
+- 狀態篩選器：啟用中（預設）/ 已停用 / 全部
 - 新增 / 編輯 → Modal 表單
 - 角色選擇：super_admin / site_manager / site_staff
 - 非 super_admin 角色需選擇所屬站區
+- 停用 → Popconfirm「確定停用此使用者？停用後可重新啟用。」→ 軟刪除（`StopOutlined` warning 色）
+- 啟用 → 已停用項目顯示「啟用」按鈕（`CheckCircleOutlined` 綠色）→ `PATCH` 恢復 active
 
 ## HolidaysPage `/holidays`
 
 - 年份篩選
 - 假日列表表格：日期、名稱、操作（刪除）
+- 刪除 → Popconfirm「確定刪除此假日？此操作無法復原。」（`DeleteOutlined` danger 色，硬刪除）
 - 新增單筆 + 批次匯入
 
 ## SchedulePage `/schedule`

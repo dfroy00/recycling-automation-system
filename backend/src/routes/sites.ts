@@ -6,19 +6,23 @@ import { authorize } from '../middleware/authorize'
 
 const router = Router()
 
-// GET /api/sites — 列表（支援分頁）
+// GET /api/sites — 列表（支援分頁 + 狀態篩選）
 router.get('/', async (req: Request, res: Response) => {
+  const { status } = req.query
+  const where: any = {}
+  if (status) where.status = status as string
+
   const { page, pageSize, skip, all } = parsePagination(req)
 
   if (all) {
-    const sites = await prisma.site.findMany({ orderBy: { id: 'asc' } })
+    const sites = await prisma.site.findMany({ where, orderBy: { id: 'asc' } })
     res.json(sites)
     return
   }
 
   const [sites, total] = await Promise.all([
-    prisma.site.findMany({ orderBy: { id: 'asc' }, skip, take: pageSize }),
-    prisma.site.count(),
+    prisma.site.findMany({ where, orderBy: { id: 'asc' }, skip, take: pageSize }),
+    prisma.site.count({ where }),
   ])
   res.json(paginationResponse(sites, total, page, pageSize))
 })
@@ -80,7 +84,24 @@ router.patch('/:id', authorize('super_admin'), async (req: Request, res: Respons
   }
 })
 
-// DELETE /api/sites/:id — 刪除（軟刪除）— 僅 super_admin
+// PATCH /api/sites/:id/reactivate — 啟用（恢復 active）— 僅 super_admin
+router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, res: Response) => {
+  try {
+    await prisma.site.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'active' },
+    })
+    res.json({ message: '已啟用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '站區不存在' })
+      return
+    }
+    throw e
+  }
+})
+
+// DELETE /api/sites/:id — 停用（軟刪除）— 僅 super_admin
 router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
     await prisma.site.update({

@@ -147,7 +147,7 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此車趟？" onConfirm={() => deleteTrip.mutate(record.id)}>
+          <Popconfirm title="確定刪除此車趟？此操作無法復原。" onConfirm={() => deleteTrip.mutate(record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>刪除</Button>
           </Popconfirm>
         </Space>
@@ -198,7 +198,7 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
                 <Space>
                   <Button type="link" size="small" icon={<ExpandOutlined />} onClick={() => setDetailTrip(trip)} />
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(trip)} />
-                  <Popconfirm title="確定刪除？" onConfirm={() => deleteTrip.mutate(trip.id)}>
+                  <Popconfirm title="確定刪除此車趟？此操作無法復原。" onConfirm={() => deleteTrip.mutate(trip.id)}>
                     <Button type="link" size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 </Space>

@@ -3,10 +3,10 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import {
   useBusinessEntities, useCreateBusinessEntity,
-  useUpdateBusinessEntity, useDeleteBusinessEntity,
+  useUpdateBusinessEntity, useDeleteBusinessEntity, useReactivateBusinessEntity,
 } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { BusinessEntity, BusinessEntityFormData } from '../types'
@@ -17,14 +17,16 @@ const { TextArea } = Input
 export default function BusinessEntitiesPage() {
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<string>('active')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingEntity, setEditingEntity] = useState<BusinessEntity | null>(null)
   const [form] = Form.useForm<BusinessEntityFormData>()
 
-  const { data, isLoading } = useBusinessEntities({ page, pageSize: 20 })
+  const { data, isLoading } = useBusinessEntities({ page, pageSize: 20, status: statusFilter || undefined })
   const createEntity = useCreateBusinessEntity()
   const updateEntity = useUpdateBusinessEntity()
   const deleteEntity = useDeleteBusinessEntity()
+  const reactivateEntity = useReactivateBusinessEntity()
 
   // 開啟新增/編輯 Modal
   const openModal = (entity?: BusinessEntity) => {
@@ -70,22 +72,28 @@ export default function BusinessEntitiesPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 160,
       fixed: 'right' as const,
       render: (_: unknown, record: BusinessEntity) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm
-            title="確定刪除此行號？"
-            onConfirm={() => deleteEntity.mutate(record.id)}
-            getPopupContainer={(trigger) => trigger.parentElement || document.body}
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              刪除
+          {record.status === 'active' ? (
+            <Popconfirm
+              title="確定停用此行號？停用後可重新啟用。"
+              onConfirm={() => deleteEntity.mutate(record.id)}
+              getPopupContainer={(trigger) => trigger.parentElement || document.body}
+            >
+              <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />}>
+                停用
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} onClick={() => reactivateEntity.mutate(record.id)}>
+              啟用
             </Button>
-          </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -98,6 +106,20 @@ export default function BusinessEntitiesPage() {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
           {!isMobile && '新增行號'}
         </Button>
+      </div>
+
+      {/* 篩選列 */}
+      <div style={{ marginBottom: 16 }}>
+        <Select
+          value={statusFilter}
+          onChange={(val) => { setStatusFilter(val); setPage(1) }}
+          style={{ width: 120 }}
+          options={[
+            { value: 'active', label: '啟用中' },
+            { value: 'inactive', label: '已停用' },
+            { value: '', label: '全部' },
+          ]}
+        />
       </div>
 
       {/* 桌面：表格模式 / 手機：卡片模式 */}
@@ -118,9 +140,13 @@ export default function BusinessEntitiesPage() {
               extra={
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(entity)} />
-                  <Popconfirm title="確定刪除？" onConfirm={() => deleteEntity.mutate(entity.id)}>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  {entity.status === 'active' ? (
+                    <Popconfirm title="確定停用此行號？停用後可重新啟用。" onConfirm={() => deleteEntity.mutate(entity.id)}>
+                      <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} />
+                    </Popconfirm>
+                  ) : (
+                    <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} onClick={() => reactivateEntity.mutate(entity.id)} />
+                  )}
                 </Space>
               }
             >

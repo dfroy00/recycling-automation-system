@@ -88,7 +88,7 @@ export default function TripItemsExpand({ tripId }: { tripId: number }) {
       key: 'actions',
       width: 80,
       render: (_: unknown, record: TripItem) => (
-        <Popconfirm title="確定刪除？" onConfirm={() => deleteItem.mutate(record.id)}>
+        <Popconfirm title="確定刪除此品項？此操作無法復原。" onConfirm={() => deleteItem.mutate(record.id)}>
           <Button type="link" size="small" danger icon={<DeleteOutlined />}>刪除</Button>
         </Popconfirm>
       ),

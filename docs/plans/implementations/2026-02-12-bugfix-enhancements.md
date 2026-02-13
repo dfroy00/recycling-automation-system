@@ -38,8 +38,10 @@
 
 ### 後續任務（Phase 7-11, Task 16-28）
 
-- [ ] **Task 16:** 後端列表查詢預設過濾 inactive 項目
-- [ ] **Task 17:** 前端刪除 UX 改為「停用/啟用」
+- [x] **Task 16:** 後端列表查詢預設過濾 inactive 項目
+  > 已完成：sites, items, business-entities, customers 的 GET list 均支援 `?status=active` 查詢參數
+- [x] **Task 17:** 前端刪除 UX 改為「停用/啟用」
+  > 已完成：見 `docs/plans/implementations/2026-02-13-delete-ux-alignment-impl.md`（25/25 項目完成）
 - [ ] **Task 18:** 新增 Category Prisma Model + Migration
 - [ ] **Task 19:** 新增 Category 後端 CRUD API
 - [ ] **Task 20:** 前端 — Category hooks + 品項表單改為下拉

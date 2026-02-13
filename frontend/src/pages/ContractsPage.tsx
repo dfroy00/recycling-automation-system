@@ -4,7 +4,7 @@ import {
   Popconfirm, Typography, List, Tag, Divider,
 } from 'antd'
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined,
+  PlusOutlined, EditOutlined, CloseCircleOutlined, DeleteOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
@@ -141,7 +141,7 @@ function ContractItemsSection({ contractId }: { contractId: number }) {
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openItemModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此品項？" onConfirm={() => deleteItem.mutate(record.id)}>
+          <Popconfirm title="確定刪除此品項？此操作無法復原。" onConfirm={() => deleteItem.mutate(record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               刪除
             </Button>
@@ -321,9 +321,9 @@ export default function ContractsPage() {
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此合約？" onConfirm={() => deleteContract.mutate(record.id)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              刪除
+          <Popconfirm title="確定終止此合約？終止後無法恢復。" onConfirm={() => deleteContract.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<CloseCircleOutlined />}>
+              終止
             </Button>
           </Popconfirm>
         </Space>
@@ -379,8 +379,8 @@ export default function ContractsPage() {
               extra={
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(contract)} />
-                  <Popconfirm title="確定刪除？" onConfirm={() => deleteContract.mutate(contract.id)}>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+                  <Popconfirm title="確定終止？" onConfirm={() => deleteContract.mutate(contract.id)}>
+                    <Button type="link" size="small" danger icon={<CloseCircleOutlined />} />
                   </Popconfirm>
                 </Space>
               }

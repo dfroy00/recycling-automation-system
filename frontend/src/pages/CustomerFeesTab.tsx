@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Popconfirm, Tag } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
-import { useCustomerFees, useCreateCustomerFee, useUpdateCustomerFee, useDeleteCustomerFee } from '../api/hooks'
+import { PlusOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { useCustomerFees, useCreateCustomerFee, useUpdateCustomerFee, useDeleteCustomerFee, useReactivateCustomerFee } from '../api/hooks'
 import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { CustomerFee, CustomerFeeFormData } from '../types'
@@ -25,6 +25,7 @@ export default function CustomerFeesTab({ customerId }: Props) {
   const createFee = useCreateCustomerFee(customerId)
   const updateFee = useUpdateCustomerFee(customerId)
   const deleteFee = useDeleteCustomerFee(customerId)
+  const reactivateFee = useReactivateCustomerFee(customerId)
 
   // 開啟新增/編輯 Modal
   const openFeeModal = (fee?: CustomerFee) => {
@@ -89,9 +90,13 @@ export default function CustomerFeesTab({ customerId }: Props) {
       render: (_: unknown, record: CustomerFee) => (
         <Space>
           <Button type="link" size="small" onClick={() => openFeeModal(record)}>編輯</Button>
-          <Popconfirm title="確定刪除？" onConfirm={() => deleteFee.mutate(record.id)}>
-            <Button type="link" size="small" danger>刪除</Button>
-          </Popconfirm>
+          {record.status === 'active' ? (
+            <Popconfirm title="確定停用此附加費用？停用後可重新啟用。" onConfirm={() => deleteFee.mutate(record.id)}>
+              <Button type="link" size="small" style={{ color: '#faad14' }}>停用</Button>
+            </Popconfirm>
+          ) : (
+            <Button type="link" size="small" style={{ color: '#52c41a' }} onClick={() => reactivateFee.mutate(record.id)}>啟用</Button>
+          )}
         </Space>
       ),
     }] : []),

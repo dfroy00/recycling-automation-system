@@ -46,7 +46,7 @@ export function useDashboardStats() {
 
 // ==================== 站區 ====================
 
-export function useSites(params?: { page?: number; pageSize?: number; all?: boolean }) {
+export function useSites(params?: { page?: number; pageSize?: number; all?: boolean; status?: string }) {
   return useQuery<PaginatedResponse<Site>>({
     queryKey: ['sites', params],
     queryFn: async () => {
@@ -99,17 +99,33 @@ export function useDeleteSite() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sites'] })
-      message.success('站區刪除成功')
+      message.success('站區已停用')
     },
     onError: () => {
-      message.error('站區刪除失敗')
+      message.error('站區停用失敗')
+    },
+  })
+}
+
+export function useReactivateSite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/sites/${id}/reactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sites'] })
+      message.success('站區已啟用')
+    },
+    onError: () => {
+      message.error('站區啟用失敗')
     },
   })
 }
 
 // ==================== 品項 ====================
 
-export function useItems(params?: { page?: number; pageSize?: number; category?: string; all?: boolean }) {
+export function useItems(params?: { page?: number; pageSize?: number; category?: string; all?: boolean; status?: string }) {
   return useQuery<PaginatedResponse<Item>>({
     queryKey: ['items', params],
     queryFn: async () => {
@@ -162,17 +178,33 @@ export function useDeleteItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
-      message.success('品項刪除成功')
+      message.success('品項已停用')
     },
     onError: () => {
-      message.error('品項刪除失敗')
+      message.error('品項停用失敗')
+    },
+  })
+}
+
+export function useReactivateItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/items/${id}/reactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      message.success('品項已啟用')
+    },
+    onError: () => {
+      message.error('品項啟用失敗')
     },
   })
 }
 
 // ==================== 行號 ====================
 
-export function useBusinessEntities(params?: { page?: number; pageSize?: number; all?: boolean }) {
+export function useBusinessEntities(params?: { page?: number; pageSize?: number; all?: boolean; status?: string }) {
   return useQuery<PaginatedResponse<BusinessEntity>>({
     queryKey: ['businessEntities', params],
     queryFn: async () => {
@@ -225,10 +257,26 @@ export function useDeleteBusinessEntity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
-      message.success('行號刪除成功')
+      message.success('行號已停用')
     },
     onError: () => {
-      message.error('行號刪除失敗')
+      message.error('行號停用失敗')
+    },
+  })
+}
+
+export function useReactivateBusinessEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/business-entities/${id}/reactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
+      message.success('行號已啟用')
+    },
+    onError: () => {
+      message.error('行號啟用失敗')
     },
   })
 }
@@ -288,10 +336,26 @@ export function useDeleteUser() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      message.success('使用者刪除成功')
+      message.success('使用者已停用')
     },
     onError: () => {
-      message.error('使用者刪除失敗')
+      message.error('使用者停用失敗')
+    },
+  })
+}
+
+export function useReactivateUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/users/${id}/reactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      message.success('使用者已啟用')
+    },
+    onError: () => {
+      message.error('使用者啟用失敗')
     },
   })
 }
@@ -361,7 +425,7 @@ export function useImportHolidays() {
 
 // ==================== 客戶 ====================
 
-export function useCustomers(params?: { page?: number; pageSize?: number; siteId?: number; type?: string; search?: string }) {
+export function useCustomers(params?: { page?: number; pageSize?: number; siteId?: number; type?: string; search?: string; status?: string }) {
   return useQuery<PaginatedResponse<Customer>>({
     queryKey: ['customers', params],
     queryFn: async () => {
@@ -424,10 +488,26 @@ export function useDeleteCustomer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      message.success('客戶刪除成功')
+      message.success('客戶已停用')
     },
     onError: () => {
-      message.error('客戶刪除失敗')
+      message.error('客戶停用失敗')
+    },
+  })
+}
+
+export function useReactivateCustomer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.patch(`/customers/${id}/reactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      message.success('客戶已啟用')
+    },
+    onError: () => {
+      message.error('客戶啟用失敗')
     },
   })
 }
@@ -487,10 +567,26 @@ export function useDeleteCustomerFee(customerId: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', customerId, 'fees'] })
-      message.success('附加費用刪除成功')
+      message.success('附加費用已停用')
     },
     onError: () => {
-      message.error('附加費用刪除失敗')
+      message.error('附加費用停用失敗')
+    },
+  })
+}
+
+export function useReactivateCustomerFee(customerId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (feeId: number) => {
+      await apiClient.patch(`/customers/${customerId}/fees/${feeId}/reactivate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', customerId, 'fees'] })
+      message.success('附加費用已啟用')
+    },
+    onError: () => {
+      message.error('附加費用啟用失敗')
     },
   })
 }
@@ -553,10 +649,10 @@ export function useDeleteContract() {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       // 合約與客戶類型聯動：終止合約可能更新客戶類型
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      message.success('合約刪除成功')
+      message.success('合約已終止')
     },
     onError: () => {
-      message.error('合約刪除失敗')
+      message.error('合約終止失敗')
     },
   })
 }

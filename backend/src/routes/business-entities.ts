@@ -6,19 +6,23 @@ import { authorize } from '../middleware/authorize'
 
 const router = Router()
 
-// GET /api/business-entities — 列表（支援分頁與 all=true）
+// GET /api/business-entities — 列表（支援分頁、all=true、狀態篩選）
 router.get('/', async (req: Request, res: Response) => {
+  const { status } = req.query
+  const where: any = {}
+  if (status) where.status = status as string
+
   const { page, pageSize, skip, all } = parsePagination(req)
 
   if (all) {
-    const entities = await prisma.businessEntity.findMany({ orderBy: { id: 'asc' } })
+    const entities = await prisma.businessEntity.findMany({ where, orderBy: { id: 'asc' } })
     res.json(entities)
     return
   }
 
   const [entities, total] = await Promise.all([
-    prisma.businessEntity.findMany({ orderBy: { id: 'asc' }, skip, take: pageSize }),
-    prisma.businessEntity.count(),
+    prisma.businessEntity.findMany({ where, orderBy: { id: 'asc' }, skip, take: pageSize }),
+    prisma.businessEntity.count({ where }),
   ])
   res.json(paginationResponse(entities, total, page, pageSize))
 })
@@ -86,7 +90,24 @@ router.patch('/:id', authorize('super_admin'), async (req: Request, res: Respons
   }
 })
 
-// DELETE /api/business-entities/:id — 刪除（軟刪除）— 僅 super_admin
+// PATCH /api/business-entities/:id/reactivate — 啟用（恢復 active）— 僅 super_admin
+router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, res: Response) => {
+  try {
+    await prisma.businessEntity.update({
+      where: { id: Number(req.params.id) },
+      data: { status: 'active' },
+    })
+    res.json({ message: '已啟用' })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      res.status(404).json({ error: '行號不存在' })
+      return
+    }
+    throw e
+  }
+})
+
+// DELETE /api/business-entities/:id — 停用（軟刪除）— 僅 super_admin
 router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
     await prisma.businessEntity.update({

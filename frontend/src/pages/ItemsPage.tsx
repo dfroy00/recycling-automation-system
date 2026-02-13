@@ -3,8 +3,8 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useItems, useCreateItem, useUpdateItem, useDeleteItem } from '../api/hooks'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { useItems, useCreateItem, useUpdateItem, useDeleteItem, useReactivateItem } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Item, ItemFormData } from '../types'
 
@@ -18,14 +18,16 @@ export default function ItemsPage() {
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>()
+  const [statusFilter, setStatusFilter] = useState<string>('active')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [form] = Form.useForm<ItemFormData>()
 
-  const { data, isLoading } = useItems({ page, pageSize: 20, category: categoryFilter })
+  const { data, isLoading } = useItems({ page, pageSize: 20, category: categoryFilter, status: statusFilter || undefined })
   const createItem = useCreateItem()
   const updateItem = useUpdateItem()
   const deleteItem = useDeleteItem()
+  const reactivateItem = useReactivateItem()
 
   // 開啟新增/編輯 Modal
   const openModal = (item?: Item) => {
@@ -72,17 +74,23 @@ export default function ItemsPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 150,
       render: (_: unknown, record: Item) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此品項？" onConfirm={() => deleteItem.mutate(record.id)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              刪除
+          {record.status === 'active' ? (
+            <Popconfirm title="確定停用此品項？停用後可重新啟用。" onConfirm={() => deleteItem.mutate(record.id)}>
+              <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />}>
+                停用
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} onClick={() => reactivateItem.mutate(record.id)}>
+              啟用
             </Button>
-          </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -98,7 +106,7 @@ export default function ItemsPage() {
       </div>
 
       {/* 篩選列 */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <Select
           allowClear
           placeholder="篩選分類"
@@ -106,6 +114,16 @@ export default function ItemsPage() {
           value={categoryFilter}
           onChange={(val) => { setCategoryFilter(val); setPage(1) }}
           options={CATEGORY_OPTIONS}
+        />
+        <Select
+          value={statusFilter}
+          onChange={(val) => { setStatusFilter(val); setPage(1) }}
+          style={{ width: 120 }}
+          options={[
+            { value: 'active', label: '啟用中' },
+            { value: 'inactive', label: '已停用' },
+            { value: '', label: '全部' },
+          ]}
         />
       </div>
 
@@ -127,9 +145,13 @@ export default function ItemsPage() {
               extra={
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(item)} />
-                  <Popconfirm title="確定刪除？" onConfirm={() => deleteItem.mutate(item.id)}>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  {item.status === 'active' ? (
+                    <Popconfirm title="確定停用此品項？停用後可重新啟用。" onConfirm={() => deleteItem.mutate(item.id)}>
+                      <Button type="link" size="small" icon={<StopOutlined style={{ color: '#faad14' }} />} />
+                    </Popconfirm>
+                  ) : (
+                    <Button type="link" size="small" icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />} onClick={() => reactivateItem.mutate(item.id)} />
+                  )}
                 </Space>
               }
             >

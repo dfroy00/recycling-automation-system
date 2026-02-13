@@ -3,7 +3,7 @@ import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Space, DatePicker,
   Popconfirm, Tag, Divider, Typography,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, CloseCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
   useContracts, useCreateContract, useUpdateContract, useDeleteContract,
@@ -139,7 +139,7 @@ function ContractItemsSection({ contractId, canEdit }: { contractId: number; can
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openItemModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此品項？" onConfirm={() => deleteItem.mutate(record.id)}>
+          <Popconfirm title="確定刪除此品項？此操作無法復原。" onConfirm={() => deleteItem.mutate(record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               刪除
             </Button>
@@ -302,9 +302,9 @@ export default function CustomerContractsTab({ customerId }: Props) {
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除？" onConfirm={() => deleteContract.mutate(record.id)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              刪除
+          <Popconfirm title="確定終止此合約？終止後無法恢復。" onConfirm={() => deleteContract.mutate(record.id)}>
+            <Button type="link" size="small" danger icon={<CloseCircleOutlined />}>
+              終止
             </Button>
           </Popconfirm>
         </Space>

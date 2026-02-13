@@ -3,8 +3,8 @@ import {
   Table, Card, Button, Modal, Form, Input, Select, Space,
   Popconfirm, Typography, List, Tag,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from '../api/hooks'
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { useSites, useCreateSite, useUpdateSite, useDeleteSite, useReactivateSite } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Site, SiteFormData } from '../types'
 
@@ -13,14 +13,16 @@ const { Title } = Typography
 export default function SitesPage() {
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<string>('active')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingSite, setEditingSite] = useState<Site | null>(null)
   const [form] = Form.useForm<SiteFormData>()
 
-  const { data, isLoading } = useSites({ page, pageSize: 20 })
+  const { data, isLoading } = useSites({ page, pageSize: 20, status: statusFilter || undefined })
   const createSite = useCreateSite()
   const updateSite = useUpdateSite()
   const deleteSite = useDeleteSite()
+  const reactivateSite = useReactivateSite()
 
   // 開啟新增/編輯 Modal
   const openModal = (site?: Site) => {
@@ -65,17 +67,23 @@ export default function SitesPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 150,
       render: (_: unknown, record: Site) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此站區？" onConfirm={() => deleteSite.mutate(record.id)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              刪除
+          {record.status === 'active' ? (
+            <Popconfirm title="確定停用此站區？停用後可重新啟用。" onConfirm={() => deleteSite.mutate(record.id)}>
+              <Button type="link" size="small" style={{ color: '#faad14' }} icon={<StopOutlined />}>
+                停用
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button type="link" size="small" style={{ color: '#52c41a' }} icon={<CheckCircleOutlined />} onClick={() => reactivateSite.mutate(record.id)}>
+              啟用
             </Button>
-          </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -88,6 +96,20 @@ export default function SitesPage() {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
           {!isMobile && '新增站區'}
         </Button>
+      </div>
+
+      {/* 狀態篩選 */}
+      <div style={{ marginBottom: 16 }}>
+        <Select
+          value={statusFilter}
+          onChange={(val) => { setStatusFilter(val); setPage(1) }}
+          style={{ width: 120 }}
+          options={[
+            { value: 'active', label: '啟用中' },
+            { value: 'inactive', label: '已停用' },
+            { value: '', label: '全部' },
+          ]}
+        />
       </div>
 
       {/* 桌面：表格模式 / 手機：卡片模式 */}
@@ -108,9 +130,13 @@ export default function SitesPage() {
               extra={
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(site)} />
-                  <Popconfirm title="確定刪除？" onConfirm={() => deleteSite.mutate(site.id)}>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  {site.status === 'active' ? (
+                    <Popconfirm title="確定停用？" onConfirm={() => deleteSite.mutate(site.id)}>
+                      <Button type="link" size="small" style={{ color: '#faad14' }} icon={<StopOutlined />} />
+                    </Popconfirm>
+                  ) : (
+                    <Button type="link" size="small" style={{ color: '#52c41a' }} icon={<CheckCircleOutlined />} onClick={() => reactivateSite.mutate(site.id)} />
+                  )}
                 </Space>
               }
             >
