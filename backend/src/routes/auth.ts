@@ -30,14 +30,14 @@ router.post('/login', async (req: Request, res: Response) => {
 
   const expiresIn = (process.env.JWT_EXPIRES_IN || '8h') as jwt.SignOptions['expiresIn']
   const token = jwt.sign(
-    { userId: user.id, userName: user.name },
+    { userId: user.id, userName: user.name, role: user.role, siteId: user.siteId },
     process.env.JWT_SECRET!,
     { expiresIn }
   )
 
   res.json({
     token,
-    user: { id: user.id, username: user.username, name: user.name, role: user.role },
+    user: { id: user.id, username: user.username, name: user.name, role: user.role, siteId: user.siteId },
   })
 })
 
@@ -45,7 +45,7 @@ router.post('/login', async (req: Request, res: Response) => {
 router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId },
-    select: { id: true, username: true, name: true, email: true, role: true },
+    select: { id: true, username: true, name: true, email: true, role: true, siteId: true },
   })
   if (!user) {
     res.status(404).json({ error: '使用者不存在' })
