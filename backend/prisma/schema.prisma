@@ -20,6 +20,7 @@ model Site {
 
   customers Customer[] /// 站區下的客戶
   trips     Trip[]     /// 站區的車趟
+  users     User[]     /// 站區的使用者
 
   @@index([status])
   @@map("sites")
@@ -258,11 +259,13 @@ model User {
   passwordHash String   @map("password_hash") /// 密碼雜湊
   name         String   /// 姓名
   email        String?  /// Email
-  role         String   @default("admin") /// 角色（MVP 統一為 admin）
+  role         String   @default("site_staff") /// 角色：super_admin / site_manager / site_staff
+  siteId       Int?     @map("site_id") /// 綁定站區（super_admin 為 null 代表全站區）
   status       String   @default("active") /// 狀態：active / inactive
   createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
   updatedAt    DateTime @updatedAt @map("updated_at") /// 更新時間
 
+  site               Site?        @relation(fields: [siteId], references: [id])
   reviewedStatements Statement[]  @relation("ReviewerStatements") /// 審核過的明細
   voidedStatements   Statement[]  @relation("VoidedByUser") /// 作廢過的明細
   systemLogs         SystemLog[]  /// 操作日誌

@@ -8,17 +8,18 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  // 1. 使用者
-  const passwordHash = await bcrypt.hash('admin123', 10)
+  // 1. 使用者（三層角色）
+  const adminHash = await bcrypt.hash('admin123', 10)
   await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: { role: 'super_admin', siteId: null },
     create: {
       username: 'admin',
-      passwordHash,
+      passwordHash: adminHash,
       name: '系統管理員',
       email: 'admin@example.com',
-      role: 'admin',
+      role: 'super_admin',
+      siteId: null,
     },
   })
 
@@ -39,6 +40,36 @@ async function main() {
       create: { ...site, status: 'active' },
     })
   }
+
+  // 2b. 新增站區主管和站區人員帳號
+  const site1 = await prisma.site.findUnique({ where: { name: '新竹站' } })
+  const managerHash = await bcrypt.hash('manager123', 10)
+  await prisma.user.upsert({
+    where: { username: 'manager1' },
+    update: { role: 'site_manager', siteId: site1?.id },
+    create: {
+      username: 'manager1',
+      passwordHash: managerHash,
+      name: '站區一主管',
+      email: 'manager1@example.com',
+      role: 'site_manager',
+      siteId: site1?.id ?? 1,
+    },
+  })
+
+  const staffHash = await bcrypt.hash('staff123', 10)
+  await prisma.user.upsert({
+    where: { username: 'staff1' },
+    update: { role: 'site_staff', siteId: site1?.id },
+    create: {
+      username: 'staff1',
+      passwordHash: staffHash,
+      name: '站區一人員',
+      email: 'staff1@example.com',
+      role: 'site_staff',
+      siteId: site1?.id ?? 1,
+    },
+  })
 
   // 3. 行號（4 個）
   const businessEntities = [
