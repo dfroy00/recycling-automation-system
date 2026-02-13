@@ -1,0 +1,321 @@
+// backend/prisma/schema.prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== 站區主檔 ====================
+model Site {
+  id        Int      @id @default(autoincrement()) /// 自動遞增
+  name      String   @unique /// 站區名稱
+  address   String?  /// 地址
+  phone     String?  /// 聯絡電話
+  status    String   @default("active") /// 狀態：active / inactive
+  createdAt DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  customers Customer[] /// 站區下的客戶
+  trips     Trip[]     /// 站區的車趟
+  users     User[]     /// 站區的使用者
+
+  @@index([status])
+  @@map("sites")
+}
+
+// ==================== 行號主檔 ====================
+model BusinessEntity {
+  id        Int      @id @default(autoincrement()) /// 自動遞增
+  name      String   @unique /// 行號名稱
+  taxId     String   @unique @map("tax_id") /// 統一編號
+  bizItems  String?  @map("biz_items") /// 營業項目說明
+  status    String   @default("active") /// 狀態：active / inactive
+  createdAt DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  customers  Customer[]  /// 使用此行號的客戶
+  statements Statement[] /// 快照此行號的明細
+
+  @@map("business_entities")
+}
+
+// ==================== 品項主檔 ====================
+model Item {
+  id        Int      @id @default(autoincrement()) /// 自動遞增，同時作為品項編號
+  name      String   @unique /// 品項名稱（全公司統一）
+  category  String?  /// 分類
+  unit      String   /// 計量單位（kg、件、袋等）
+  status    String   @default("active") /// 狀態：active / inactive
+  createdAt DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  contractItems ContractItem[] /// 被合約引用
+  tripItems     TripItem[]     /// 被車趟品項引用
+
+  @@map("items")
+}
+
+// ==================== 客戶主檔 ====================
+model Customer {
+  id                 Int      @id @default(autoincrement()) /// 自動遞增
+  siteId             Int      @map("site_id") /// 所屬站區
+  name               String   /// 客戶名稱
+  contactPerson      String?  @map("contact_person") /// 聯絡人
+  phone              String?  /// 電話
+  address            String?  /// 地址
+  type               String   /// contracted（簽約）/ temporary（臨時）
+  tripFeeEnabled     Boolean  @default(false) @map("trip_fee_enabled") /// 是否收車趟費
+  tripFeeType        String?  @map("trip_fee_type") /// per_trip（按次）/ per_month（按月）
+  tripFeeAmount      Decimal? @map("trip_fee_amount") @db.Decimal(10, 2) /// 車趟費金額
+  statementType      String   @default("monthly") @map("statement_type") /// monthly / per_trip
+  paymentType        String   @default("lump_sum") @map("payment_type") /// lump_sum / per_trip
+  statementSendDay   Int?     @default(15) @map("statement_send_day") /// 明細寄送日（每月幾號）
+  paymentDueDay      Int?     @default(15) @map("payment_due_day") /// 付款到期日（每月幾號）
+  invoiceRequired    Boolean  @default(false) @map("invoice_required") /// 是否需要開立發票
+  invoiceType        String?  @default("net") @map("invoice_type") /// net / separate
+  notificationMethod String   @default("email") @map("notification_method") /// email / line / both
+  notificationEmail  String?  @map("notification_email") /// 通知 Email
+  notificationLineId String?  @map("notification_line_id") /// LINE ID
+  paymentAccount     String?  @map("payment_account") /// 匯款帳戶資訊
+  businessEntityId   Int?     @map("business_entity_id") /// 開票行號
+  status             String   @default("active") /// 狀態：active / inactive
+  createdAt          DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt          DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  site             Site            @relation(fields: [siteId], references: [id])
+  businessEntity   BusinessEntity? @relation(fields: [businessEntityId], references: [id])
+  contracts        Contract[]      /// 客戶的合約
+  fees             CustomerFee[]   /// 客戶附加費用
+  trips            Trip[]          /// 客戶的車趟
+  statements       Statement[]     /// 客戶的結算明細
+
+  @@index([siteId, status])
+  @@map("customers")
+}
+
+// ==================== 客戶附加費用 ====================
+model CustomerFee {
+  id               Int      @id @default(autoincrement()) /// 自動遞增
+  customerId       Int      @map("customer_id") /// 所屬客戶
+  name             String   /// 費用名稱（自由輸入）
+  amount           Decimal  @db.Decimal(10, 2) /// 固定金額
+  billingDirection String   @map("billing_direction") /// receivable / payable
+  frequency        String   /// monthly / per_trip
+  status           String   @default("active") /// 狀態：active / inactive
+  createdAt        DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt        DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("customer_fees")
+}
+
+// ==================== 合約 ====================
+model Contract {
+  id             Int      @id @default(autoincrement()) /// 自動遞增
+  customerId     Int      @map("customer_id") /// 所屬客戶
+  contractNumber String   @unique @map("contract_number") /// 合約編號
+  startDate      DateTime @map("start_date") @db.Date /// 合約起始日
+  endDate        DateTime @map("end_date") @db.Date /// 合約到期日
+  status         String   @default("draft") /// draft / active / expired / terminated
+  notes          String?  /// 備註
+  createdAt      DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt      DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  customer Customer       @relation(fields: [customerId], references: [id])
+  items    ContractItem[] /// 合約品項
+
+  @@map("contracts")
+}
+
+// ==================== 合約品項（計費核心） ====================
+model ContractItem {
+  id               Int      @id @default(autoincrement()) /// 自動遞增
+  contractId       Int      @map("contract_id") /// 所屬合約
+  itemId           Int      @map("item_id") /// 品項
+  unitPrice        Decimal  @map("unit_price") @db.Decimal(10, 2) /// 合約單價
+  billingDirection String   @map("billing_direction") /// receivable / payable / free
+  createdAt        DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt        DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  contract Contract @relation(fields: [contractId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [id])
+
+  @@index([contractId])
+  @@map("contract_items")
+}
+
+// ==================== 車趟紀錄 ====================
+model Trip {
+  id           Int      @id @default(autoincrement()) /// 自動遞增
+  customerId   Int      @map("customer_id") /// 客戶
+  siteId       Int      @map("site_id") /// 站區
+  tripDate     DateTime @map("trip_date") @db.Date /// 收運日期
+  tripTime     String?  @map("trip_time") /// 收運時間（如 08:30，用於同步去重比對，手動建立可為 null）
+  driver       String?  /// 司機
+  vehiclePlate String?  @map("vehicle_plate") /// 車牌
+  source       String   @default("manual") /// 資料來源：manual / pos_sync / vehicle_sync
+  externalId   String?  @map("external_id") /// 外部系統原始 ID
+  notes        String?  /// 備註
+  createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt    DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  site       Site       @relation(fields: [siteId], references: [id])
+  items      TripItem[] /// 趟次品項明細
+  statements Statement[] @relation("TripStatement") /// 按趟明細
+
+  @@index([customerId, tripDate])
+  @@index([siteId, tripDate])
+  @@map("trips")
+}
+
+// ==================== 趟次品項明細 ====================
+model TripItem {
+  id               Int      @id @default(autoincrement()) /// 自動遞增
+  tripId           Int      @map("trip_id") /// 所屬車趟
+  itemId           Int      @map("item_id") /// 品項
+  quantity         Decimal  @db.Decimal(10, 2) /// 數量
+  unit             String   /// 快照：收運當時的計量單位
+  unitPrice        Decimal  @map("unit_price") @db.Decimal(10, 2) /// 快照：收運當時的單價
+  billingDirection String   @map("billing_direction") /// 快照：收運當時的方向
+  amount           Decimal  @db.Decimal(10, 2) /// 計算金額（unitPrice x quantity）
+  createdAt        DateTime @default(now()) @map("created_at") /// 建立時間
+
+  trip Trip @relation(fields: [tripId], references: [id])
+  item Item @relation(fields: [itemId], references: [id])
+
+  @@index([tripId])
+  @@map("trip_items")
+}
+
+// ==================== 結算明細（月結 + 按趟） ====================
+model Statement {
+  id                      Int       @id @default(autoincrement()) /// 自動遞增
+  customerId              Int       @map("customer_id") /// 客戶
+  statementType           String    @map("statement_type") /// monthly / per_trip
+  tripId                  Int?      @map("trip_id") /// 關聯車趟（僅 per_trip 使用）
+  yearMonth               String    @map("year_month") /// 結算月份（如 2026-01）
+  itemReceivable          Decimal   @default(0) @map("item_receivable") @db.Decimal(12, 2) /// 品項應收小計
+  itemPayable             Decimal   @default(0) @map("item_payable") @db.Decimal(12, 2) /// 品項應付小計
+  tripFeeTotal            Decimal   @default(0) @map("trip_fee_total") @db.Decimal(12, 2) /// 車趟費合計
+  additionalFeeReceivable Decimal   @default(0) @map("additional_fee_receivable") @db.Decimal(12, 2) /// 應收附加費用合計
+  additionalFeePayable    Decimal   @default(0) @map("additional_fee_payable") @db.Decimal(12, 2) /// 應付附加費用合計
+  totalReceivable         Decimal   @default(0) @map("total_receivable") @db.Decimal(12, 2) /// 應收合計
+  totalPayable            Decimal   @default(0) @map("total_payable") @db.Decimal(12, 2) /// 應付合計
+  netAmount               Decimal   @default(0) @map("net_amount") @db.Decimal(12, 2) /// 淨額
+  subtotal                Decimal   @default(0) @db.Decimal(12, 2) /// 小計
+  taxAmount               Decimal   @default(0) @map("tax_amount") @db.Decimal(12, 2) /// 稅額（5%）
+  totalAmount             Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2) /// 總額
+  receivableSubtotal      Decimal?  @map("receivable_subtotal") @db.Decimal(12, 2) /// 分開開票：應收小計
+  receivableTax           Decimal?  @map("receivable_tax") @db.Decimal(12, 2) /// 分開開票：應收稅額
+  receivableTotal         Decimal?  @map("receivable_total") @db.Decimal(12, 2) /// 分開開票：應收總額
+  payableSubtotal         Decimal?  @map("payable_subtotal") @db.Decimal(12, 2) /// 分開開票：應付小計
+  payableTax              Decimal?  @map("payable_tax") @db.Decimal(12, 2) /// 分開開票：應付稅額
+  payableTotal            Decimal?  @map("payable_total") @db.Decimal(12, 2) /// 分開開票：應付總額
+  detailJson              Json?     @map("detail_json") /// 完整明細 JSON
+  status                  String    @default("draft") /// draft / approved / rejected / invoiced / sent
+  reviewedBy              Int?      @map("reviewed_by") /// 審核人
+  reviewedAt              DateTime? @map("reviewed_at") /// 審核時間
+  sentAt                  DateTime? @map("sent_at") /// 寄送時間
+  sentMethod              String?   @map("sent_method") /// email / line
+  sendRetryCount          Int       @default(0) @map("send_retry_count") /// 寄送重試次數（最大 3）
+  sendError               String?   @map("send_error") /// 最後一次寄送失敗原因
+  voidedAt                DateTime? @map("voided_at") /// 作廢時間
+  voidedBy                Int?      @map("voided_by") /// 作廢操作人
+  voidReason              String?   @map("void_reason") /// 作廢原因（作廢時必填）
+  businessEntityId        Int?      @map("business_entity_id") /// 快照：產出明細當下的開票行號
+  createdAt               DateTime  @default(now()) @map("created_at") /// 建立時間
+  updatedAt               DateTime  @updatedAt @map("updated_at") /// 更新時間
+
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  trip           Trip?           @relation("TripStatement", fields: [tripId], references: [id])
+  reviewer       User?           @relation("ReviewerStatements", fields: [reviewedBy], references: [id])
+  voidedByUser   User?           @relation("VoidedByUser", fields: [voidedBy], references: [id])
+  businessEntity BusinessEntity? @relation(fields: [businessEntityId], references: [id])
+
+  @@index([customerId, yearMonth, status])
+  @@map("statements")
+}
+
+// ==================== 假日主檔 ====================
+model Holiday {
+  id        Int      @id @default(autoincrement()) /// 自動遞增
+  date      DateTime @unique @db.Date /// 假日日期
+  name      String   /// 假日名稱
+  year      Int      /// 年份
+  createdAt DateTime @default(now()) @map("created_at") /// 建立時間
+
+  @@map("holidays")
+}
+
+// ==================== 使用者 ====================
+model User {
+  id           Int      @id @default(autoincrement()) /// 自動遞增
+  username     String   @unique /// 帳號
+  passwordHash String   @map("password_hash") /// 密碼雜湊
+  name         String   /// 姓名
+  email        String?  /// Email
+  role         String   @default("site_staff") /// 角色：super_admin / site_manager / site_staff
+  siteId       Int?     @map("site_id") /// 綁定站區（super_admin 為 null 代表全站區）
+  status       String   @default("active") /// 狀態：active / inactive
+  createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
+  updatedAt    DateTime @updatedAt @map("updated_at") /// 更新時間
+
+  site               Site?        @relation(fields: [siteId], references: [id])
+  reviewedStatements Statement[]  @relation("ReviewerStatements") /// 審核過的明細
+  voidedStatements   Statement[]  @relation("VoidedByUser") /// 作廢過的明細
+  systemLogs         SystemLog[]  /// 操作日誌
+
+  @@map("users")
+}
+
+// ==================== 系統日誌 ====================
+model SystemLog {
+  id           Int      @id @default(autoincrement()) /// 自動遞增
+  eventType    String   @map("event_type") /// 事件類型
+  eventContent String   @map("event_content") /// 事件內容
+  userId       Int?     @map("user_id") /// 操作使用者
+  createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("system_logs")
+}
+
+// ==================== Mock DB：模擬 POS 收運紀錄 ====================
+model MockPosCollection {
+  id             Int      @id @default(autoincrement()) /// 自動遞增
+  externalId     String   @unique @map("external_id") /// 模擬外部系統 ID
+  siteName       String   @map("site_name") /// 站區名稱
+  customerName   String   @map("customer_name") /// 客戶名稱
+  collectionDate DateTime @map("collection_date") @db.Date /// 收運日期
+  itemName       String   @map("item_name") /// 品項名稱
+  quantity       Decimal  @db.Decimal(10, 2) /// 數量
+  unit           String   /// 計量單位
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(10, 2) /// 單價
+  imported       Boolean  @default(false) /// 是否已匯入本系統
+  createdAt      DateTime @default(now()) @map("created_at") /// 建立時間
+
+  @@map("mock_pos_collections")
+}
+
+// ==================== Mock DB：模擬車機車趟紀錄 ====================
+model MockVehicleTrip {
+  id           Int      @id @default(autoincrement()) /// 自動遞增
+  externalId   String   @unique @map("external_id") /// 模擬外部系統 ID
+  siteName     String   @map("site_name") /// 站區名稱
+  customerName String   @map("customer_name") /// 客戶名稱
+  tripDate     DateTime @map("trip_date") @db.Date /// 車趟日期
+  tripTime     String?  @map("trip_time") /// 出車時間
+  driver       String   /// 司機姓名
+  vehiclePlate String   @map("vehicle_plate") /// 車牌號碼
+  status       String   @default("completed") /// pending / in_progress / completed
+  imported     Boolean  @default(false) /// 是否已匯入本系統
+  createdAt    DateTime @default(now()) @map("created_at") /// 建立時間
+
+  @@map("mock_vehicle_trips")
+}
