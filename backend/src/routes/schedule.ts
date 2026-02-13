@@ -1,8 +1,12 @@
 // backend/src/routes/schedule.ts
 import { Router, Request, Response } from 'express'
 import { getScheduleStatus, triggerJob } from '../services/scheduler.service'
+import { authorize } from '../middleware/authorize'
 
 const router = Router()
+
+// 排程管理僅 super_admin 可存取
+router.use(authorize('super_admin'))
 
 // GET /api/schedule — 排程狀態
 router.get('/', async (_req: Request, res: Response) => {

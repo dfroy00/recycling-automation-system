@@ -4,8 +4,12 @@ import prisma from '../lib/prisma'
 import { syncPosRecords, syncVehicleRecords } from '../services/sync.service'
 import { getPosAdapter, getVehicleAdapter } from '../adapters'
 import { generateMockData } from '../adapters/mock/mock-data-seeder'
+import { authorize } from '../middleware/authorize'
 
 const router = Router()
+
+// 全部路由僅 super_admin 可存取
+router.use(authorize('super_admin'))
 
 // POST /api/sync/pos/pull — 從 POS 拉取收運紀錄
 router.post('/pos/pull', async (req: Request, res: Response) => {

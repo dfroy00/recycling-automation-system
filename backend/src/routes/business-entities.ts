@@ -2,6 +2,7 @@
 import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
+import { authorize } from '../middleware/authorize'
 
 const router = Router()
 
@@ -32,8 +33,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(entity)
 })
 
-// POST /api/business-entities — 新增
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/business-entities — 新增 — 僅 super_admin
+router.post('/', authorize('super_admin'), async (req: Request, res: Response) => {
   const { name, taxId, bizItems, status } = req.body
   if (!name) {
     res.status(400).json({ error: '行號名稱為必填' })
@@ -58,8 +59,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/business-entities/:id — 更新
-router.patch('/:id', async (req: Request, res: Response) => {
+// PATCH /api/business-entities/:id — 更新 — 僅 super_admin
+router.patch('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   const { name, taxId, bizItems, status } = req.body
   try {
     const entity = await prisma.businessEntity.update({
@@ -85,8 +86,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/business-entities/:id — 刪除（軟刪除）
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/business-entities/:id — 刪除（軟刪除）— 僅 super_admin
+router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
     await prisma.businessEntity.update({
       where: { id: Number(req.params.id) },
