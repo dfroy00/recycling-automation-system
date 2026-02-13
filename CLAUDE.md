@@ -16,11 +16,11 @@
 
 ## SDD 變更流程（強制遵守）
 
-**所有功能變更、行為修改都必須遵循四階段流程**，完整規範見 [SDD-WORKFLOW.md](docs/spec/SDD-WORKFLOW.md)。
+**所有功能變更、行為修改都必須遵循五階段流程**，完整規範見 [SDD-WORKFLOW.md](docs/spec/SDD-WORKFLOW.md)。
 
 ```
-Design → Spec Update → Implementation Plan → Code
-（設計）  （更新規格）   （實作計畫）         （寫程式碼）
+Design → Spec Update → Implementation Plan → Test → Code
+（設計）  （更新規格）   （實作計畫）          （測試） （寫程式碼）
 ```
 
 ### 階段一：Design
@@ -40,15 +40,21 @@ Design → Spec Update → Implementation Plan → Code
 - 建立 `docs/plans/implementations/YYYY-MM-DD-<topic>.md`
 - 列出任務清單、影響檔案、測試計畫
 
-### 階段四：Code
+### 階段四：Test
 
-- 按照 Plan 逐一實作
+- 從 Spec 驗收條件（Given/When/Then）轉化為測試案例
+- 測試先行（TDD）：先寫測試，確認全部為紅燈
+- 測試分類：單元測試（業務規則）、整合測試（API）、E2E 測試（UI 流程）
+
+### 階段五：Code
+
+- 按照 Plan 逐一實作，使測試從紅燈轉為綠燈
 - 發現 Spec 有誤 → **先改 Spec 再改 Code**
 - 不做 Spec 未定義的功能
 
 ### 快速修復例外
 
-Bug 修復、錯字修正、依賴升級可跳過 Design，但仍需更新 Spec（如有影響）。
+Bug 修復、錯字修正、依賴升級可跳過 Design，但仍需更新 Spec（如有影響）並撰寫測試。
 
 ## Spec 檔案結構
 
@@ -64,8 +70,7 @@ docs/spec/
 ├── business-rules/          # 業務規則（5 檔）
 ├── ui-specs/                # UI 規格（7 檔）
 ├── integrations/            # 外部整合（3 檔）
-├── operations/              # 營運配置（3 檔）
-└── system-spec.md           # [DEPRECATED] 舊版，勿引用
+└── operations/              # 營運配置（3 檔）
 ```
 
 ### 修改 Spec 的查找指引
@@ -166,11 +171,13 @@ docker compose up -d
 
 ## 關鍵約束（容易遺忘）
 
-- `system-spec.md` 已棄用，**勿引用、勿更新**
 - 客戶 `per_trip` 結算不允許 `per_trip` 付款方式
 - 新增合約自動更新客戶類型為 `contracted`，刪除合約需檢查是否降回 `temporary`
 - TripItem 使用快照設計，合約價格變動不影響歷史記錄
-- 軟刪除實體：Site, Item, Customer, CustomerFee, BusinessEntity, User
-- 硬刪除實體：Trip, TripItem, ContractItem, Holiday
-- 合約 DELETE = 設為 `terminated`
+- 三層操作實體（停用/啟用/硬刪除）：Site, Item, Customer, CustomerFee, BusinessEntity, User
+  - `PATCH /:id/deactivate` → 停用（status 設為 inactive）
+  - `PATCH /:id/reactivate` → 啟用（status 恢復 active）
+  - `DELETE /:id` → 硬刪除（永久移除，有外鍵關聯時回傳 409）
+- 直接硬刪除實體：Trip, TripItem, ContractItem, Holiday
+- 合約 DELETE = 設為 `terminated`（非硬刪除）
 - JWT_SECRET 必須設定，禁止 fallback 預設值

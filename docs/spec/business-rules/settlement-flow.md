@@ -2,7 +2,6 @@
 
 > **版本**：3.0
 > **日期**：2026-02-13
-> **來源**：從 system-spec.md §4.4、§4.5、§4.6 抽取
 
 ## 明細寄送規則
 
@@ -69,6 +68,32 @@
 | 終止（`DELETE` contract） | **終止** | `CloseCircleOutlined` danger 色 | 「確定終止此合約？終止後無法恢復。」 |
 
 詳見 [操作按鈕語意規範](../ui-specs/README.md#操作按鈕語意規範)。
+
+## 驗收條件
+
+### 狀態機轉換
+
+- [ ] Given: 選擇客戶和月份，該月有車趟但無明細。When: 點擊「產出月結明細」。Then: 建立 `draft` 狀態的明細，金額由計費引擎計算。
+
+- [ ] Given: 一筆 `draft` 明細。When: 執行審核操作。Then: 明細狀態變為 `approved`。
+
+- [ ] Given: 一筆 `approved` 明細，客戶 `invoiceRequired = true`。When: 執行開票操作。Then: 明細狀態變為 `invoiced`。
+
+- [ ] Given: 一筆 `invoiced` 明細。When: 執行寄送操作。Then: 明細狀態變為 `sent`，觸發通知（Email/LINE）。
+
+- [ ] Given: 一筆 `approved` 明細，客戶 `invoiceRequired = false`。When: 執行寄送操作。Then: 明細狀態直接變為 `sent`（跳過 invoiced）。
+
+- [ ] Given: 選擇客戶和月份，該月已有 `draft` 狀態的明細。When: 嘗試再次產出。Then: 跳過不重複產出，提示「該月已有明細紀錄」。
+
+- [ ] Given: 選擇客戶和月份，該月已有 `voided` 狀態的明細。When: 點擊「產出月結明細」。Then: 成功建立新的 `draft` 明細（voided 不阻擋重新產出）。
+
+- [ ] Given: 一筆 `sent` 明細。When: 執行作廢操作。Then: 明細狀態變為 `voided`。
+
+### 寄送失敗重試
+
+- [ ] Given: 一筆明細寄送失敗，`sendRetryCount` = 1。When: 每日排程觸發自動重試。Then: 重新嘗試寄送，`sendRetryCount` 增加為 2。
+
+- [ ] Given: 一筆明細 `sendRetryCount` = 3。When: 每日排程觸發。Then: 跳過不重試（已達上限）。
 
 ## 相關規格
 

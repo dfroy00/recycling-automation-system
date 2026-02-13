@@ -19,7 +19,7 @@
 | 文件 | 說明 |
 |------|------|
 | [architecture.md](./architecture.md) | 技術選型、系統架構、非功能需求 |
-| [SDD-WORKFLOW.md](./SDD-WORKFLOW.md) | SDD 四階段變更流程 |
+| [SDD-WORKFLOW.md](./SDD-WORKFLOW.md) | SDD 五階段變更流程 |
 
 ### 資料模型 (`data-models/`)
 
@@ -93,11 +93,11 @@
 
 ## 變更流程
 
-所有規格變更須遵循 [SDD 四階段流程](./SDD-WORKFLOW.md)：
+所有規格變更須遵循 [SDD 五階段流程](./SDD-WORKFLOW.md)：
 
 ```
-Design → Spec Update → Implementation Plan → Code
-（設計）  （更新規格）   （實作計畫）         （寫程式碼）
+Design → Spec Update → Implementation Plan → Test → Code
+（設計）  （更新規格）   （實作計畫）          （測試） （寫程式碼）
 ```
 
 ## Plans 管理

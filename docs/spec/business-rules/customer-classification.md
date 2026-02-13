@@ -2,7 +2,6 @@
 
 > **版本**：3.0
 > **日期**：2026-02-13
-> **來源**：從 system-spec.md §4.1 抽取
 
 ## 客戶類型
 
@@ -20,6 +19,16 @@
 - 新增合約（`POST /api/contracts`）成功後，若客戶 `type` 為 `temporary`，自動更新為 `contracted`
 - 終止/刪除合約後，若該客戶已無任何 `active` 合約，自動將 `type` 改回 `temporary`
 - 前端 hooks 在合約 mutation 成功後需同時 invalidate `contracts` 和 `customers` cache
+
+## 驗收條件
+
+### 合約聯動
+
+- [ ] Given: 一個 `temporary` 客戶。When: 為該客戶新增第一份合約（`POST /api/contracts`）成功。Then: 該客戶的 `type` 自動更新為 `contracted`。
+
+- [ ] Given: 一個 `contracted` 客戶有 2 份 `active` 合約。When: 終止其中一份合約。Then: 客戶 `type` 維持 `contracted`（仍有另一份有效合約）。
+
+- [ ] Given: 一個 `contracted` 客戶僅剩 1 份 `active` 合約。When: 終止該合約。Then: 客戶 `type` 自動更新為 `temporary`，前端 `contracts` 和 `customers` cache 同時 invalidate。
 
 ## 相關規格
 

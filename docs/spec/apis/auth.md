@@ -2,7 +2,6 @@
 
 > **版本**：3.0
 > **日期**：2026-02-13
-> **來源**：從 system-spec.md §3.1 抽取
 
 ## POST /api/auth/login
 
