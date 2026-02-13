@@ -84,6 +84,17 @@ export default function CustomersPage() {
       responsive: ['lg' as const],
       render: (v: string) => v === 'lump_sum' ? '一次付' : '按趟付',
     },
+    {
+      title: '狀態',
+      dataIndex: 'status',
+      key: 'status',
+      width: 80,
+      render: (status: string) => (
+        <Tag color={status === 'active' ? 'green' : 'default'}>
+          {status === 'active' ? '啟用' : '停用'}
+        </Tag>
+      ),
+    },
     ...(canEdit ? [{
       title: '操作',
       key: 'actions',

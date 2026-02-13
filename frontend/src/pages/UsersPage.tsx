@@ -5,6 +5,7 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useUsers, useCreateUser, useUpdateUser, useDeactivateUser, useDeleteUser, useReactivateUser, useSites } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { User, UserFormData } from '../types'
 
@@ -31,6 +32,7 @@ const roleColors: Record<string, string> = {
 
 export default function UsersPage() {
   const { isMobile } = useResponsive()
+  const { canManageSystem } = useAuth()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('active')
@@ -122,7 +124,7 @@ export default function UsersPage() {
         </Tag>
       ),
     },
-    {
+    ...(canManageSystem ? [{
       title: '操作',
       key: 'actions',
       width: 220,
@@ -149,16 +151,18 @@ export default function UsersPage() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>使用者管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          {!isMobile && '新增使用者'}
-        </Button>
+        {canManageSystem && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            {!isMobile && '新增使用者'}
+          </Button>
+        )}
       </div>
 
       {/* 狀態篩選 */}
@@ -185,7 +189,7 @@ export default function UsersPage() {
             <Card
               size="small"
               style={{ marginBottom: 8 }}
-              extra={
+              extra={canManageSystem ? (
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(user)} />
                   {user.status === 'active' ? (
@@ -199,7 +203,7 @@ export default function UsersPage() {
                     <Button type="link" size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 </Space>
-              }
+              ) : undefined}
             >
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{user.name}</div>
               <div style={{ color: '#666', fontSize: 12 }}>
@@ -252,7 +256,7 @@ export default function UsersPage() {
           <Form.Item name="email" label="Email">
             <Input placeholder="請輸入 Email" />
           </Form.Item>
-          <Form.Item name="role" label="角色" initialValue="super_admin">
+          <Form.Item name="role" label="角色" initialValue="site_staff">
             <Select options={roleOptions} />
           </Form.Item>
           {watchedRole && watchedRole !== 'super_admin' && (

@@ -101,8 +101,8 @@ export function useDeactivateSite() {
       queryClient.invalidateQueries({ queryKey: ['sites'] })
       message.success('站區已停用')
     },
-    onError: () => {
-      message.error('站區停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '站區停用失敗')
     },
   })
 }
@@ -133,8 +133,8 @@ export function useReactivateSite() {
       queryClient.invalidateQueries({ queryKey: ['sites'] })
       message.success('站區已啟用')
     },
-    onError: () => {
-      message.error('站區啟用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '站區啟用失敗')
     },
   })
 }
@@ -196,8 +196,8 @@ export function useDeactivateItem() {
       queryClient.invalidateQueries({ queryKey: ['items'] })
       message.success('品項已停用')
     },
-    onError: () => {
-      message.error('品項停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '品項停用失敗')
     },
   })
 }
@@ -228,8 +228,8 @@ export function useReactivateItem() {
       queryClient.invalidateQueries({ queryKey: ['items'] })
       message.success('品項已啟用')
     },
-    onError: () => {
-      message.error('品項啟用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '品項啟用失敗')
     },
   })
 }
@@ -291,8 +291,8 @@ export function useDeactivateBusinessEntity() {
       queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
       message.success('行號已停用')
     },
-    onError: () => {
-      message.error('行號停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '行號停用失敗')
     },
   })
 }
@@ -323,8 +323,8 @@ export function useReactivateBusinessEntity() {
       queryClient.invalidateQueries({ queryKey: ['businessEntities'] })
       message.success('行號已啟用')
     },
-    onError: () => {
-      message.error('行號啟用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '行號啟用失敗')
     },
   })
 }
@@ -386,8 +386,8 @@ export function useDeactivateUser() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       message.success('使用者已停用')
     },
-    onError: () => {
-      message.error('使用者停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '使用者停用失敗')
     },
   })
 }
@@ -418,8 +418,8 @@ export function useReactivateUser() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       message.success('使用者已啟用')
     },
-    onError: () => {
-      message.error('使用者啟用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '使用者啟用失敗')
     },
   })
 }
@@ -554,8 +554,8 @@ export function useDeactivateCustomer() {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       message.success('客戶已停用')
     },
-    onError: () => {
-      message.error('客戶停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '客戶停用失敗')
     },
   })
 }
@@ -586,8 +586,8 @@ export function useReactivateCustomer() {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       message.success('客戶已啟用')
     },
-    onError: () => {
-      message.error('客戶啟用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '客戶啟用失敗')
     },
   })
 }
@@ -649,8 +649,8 @@ export function useDeactivateCustomerFee(customerId: number) {
       queryClient.invalidateQueries({ queryKey: ['customers', customerId, 'fees'] })
       message.success('附加費用已停用')
     },
-    onError: () => {
-      message.error('附加費用停用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '附加費用停用失敗')
     },
   })
 }
@@ -681,8 +681,8 @@ export function useReactivateCustomerFee(customerId: number) {
       queryClient.invalidateQueries({ queryKey: ['customers', customerId, 'fees'] })
       message.success('附加費用已啟用')
     },
-    onError: () => {
-      message.error('附加費用啟用失敗')
+    onError: (error: any) => {
+      message.error(error.response?.data?.error || '附加費用啟用失敗')
     },
   })
 }

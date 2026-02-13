@@ -64,7 +64,7 @@ const directionLabelMap: Record<string, string> = {
 }
 
 // ==================== 合約品項子元件 ====================
-function ContractItemsSection({ contractId }: { contractId: number }) {
+function ContractItemsSection({ contractId, canEdit }: { contractId: number; canEdit: boolean }) {
   const { isMobile } = useResponsive()
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ContractItem | null>(null)
@@ -133,7 +133,7 @@ function ContractItemsSection({ contractId }: { contractId: number }) {
         </Tag>
       ),
     },
-    {
+    ...(canEdit ? [{
       title: '操作',
       key: 'actions',
       width: 120,
@@ -149,16 +149,18 @@ function ContractItemsSection({ contractId }: { contractId: number }) {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <Text strong>合約品項</Text>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => openItemModal()}>
-          新增品項
-        </Button>
+        {canEdit && (
+          <Button size="small" icon={<PlusOutlined />} onClick={() => openItemModal()}>
+            新增品項
+          </Button>
+        )}
       </div>
 
       <Table
@@ -480,7 +482,7 @@ export default function ContractsPage() {
           {editingContract && (
             <>
               <Divider />
-              <ContractItemsSection contractId={editingContract.id} />
+              <ContractItemsSection contractId={editingContract.id} canEdit={canEdit} />
             </>
           )}
         </Form>

@@ -201,6 +201,61 @@ describe('PATCH /api/users/:id/deactivate', () => {
   })
 })
 
+describe('PATCH /api/users/:id/reactivate', () => {
+  it('啟用使用者（狀態恢復 active）', async () => {
+    const res = await request(app)
+      .patch(`/api/users/${createdUserId}/reactivate`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已啟用')
+
+    // 確認狀態恢復 active
+    const check = await request(app)
+      .get(`/api/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(check.body.status).toBe('active')
+  })
+
+  it('啟用不存在的使用者應回傳 404', async () => {
+    const res = await request(app)
+      .patch('/api/users/999999/reactivate')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toHaveProperty('error')
+  })
+})
+
+describe('DELETE /api/users/:id', () => {
+  it('硬刪除使用者成功', async () => {
+    const res = await request(app)
+      .delete(`/api/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已刪除')
+
+    // 確認已被刪除
+    const check = await request(app)
+      .get(`/api/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(check.status).toBe(404)
+
+    // 清除 ID 避免 afterAll 重複刪除
+    createdUserId = 0
+  })
+
+  it('刪除不存在的使用者應回傳 404', async () => {
+    const res = await request(app)
+      .delete('/api/users/999999')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toHaveProperty('error')
+  })
+})
+
 describe('認證保護', () => {
   it('無 token 存取使用者應回傳 401', async () => {
     const res = await request(app).get('/api/users')

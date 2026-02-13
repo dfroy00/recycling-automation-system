@@ -169,6 +169,58 @@ describe('PATCH /api/items/:id/deactivate', () => {
   })
 })
 
+describe('PATCH /api/items/:id/reactivate', () => {
+  it('啟用品項（狀態恢復 active）', async () => {
+    const res = await request(app)
+      .patch(`/api/items/${createdItemId}/reactivate`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已啟用')
+
+    const check = await request(app)
+      .get(`/api/items/${createdItemId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(check.body.status).toBe('active')
+  })
+
+  it('啟用不存在的品項應回傳 404', async () => {
+    const res = await request(app)
+      .patch('/api/items/999999/reactivate')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toHaveProperty('error')
+  })
+})
+
+describe('DELETE /api/items/:id', () => {
+  it('硬刪除品項成功', async () => {
+    const res = await request(app)
+      .delete(`/api/items/${createdItemId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已刪除')
+
+    const check = await request(app)
+      .get(`/api/items/${createdItemId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(check.status).toBe(404)
+
+    createdItemId = 0
+  })
+
+  it('刪除不存在的品項應回傳 404', async () => {
+    const res = await request(app)
+      .delete('/api/items/999999')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toHaveProperty('error')
+  })
+})
+
 describe('認證保護', () => {
   it('無 token 存取品項應回傳 401', async () => {
     const res = await request(app).get('/api/items')

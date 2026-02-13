@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
 import { authorize } from '../middleware/authorize'
+import { createDeactivateHandler, createReactivateHandler, createHardDeleteHandler } from './helpers'
 
 const router = Router()
 
@@ -86,57 +87,12 @@ router.patch('/:id', authorize('super_admin'), async (req: Request, res: Respons
 })
 
 // PATCH /api/items/:id/deactivate — 停用 — 僅 super_admin
-router.patch('/:id/deactivate', authorize('super_admin'), async (req: Request, res: Response) => {
-  try {
-    await prisma.item.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'inactive' },
-    })
-    res.json({ message: '已停用' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '品項不存在' })
-      return
-    }
-    throw e
-  }
-})
+router.patch('/:id/deactivate', authorize('super_admin'), createDeactivateHandler('item', '品項'))
 
 // PATCH /api/items/:id/reactivate — 啟用（恢復 active）— 僅 super_admin
-router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, res: Response) => {
-  try {
-    await prisma.item.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'active' },
-    })
-    res.json({ message: '已啟用' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '品項不存在' })
-      return
-    }
-    throw e
-  }
-})
+router.patch('/:id/reactivate', authorize('super_admin'), createReactivateHandler('item', '品項'))
 
 // DELETE /api/items/:id — 硬刪除 — 僅 super_admin
-router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
-  try {
-    await prisma.item.delete({
-      where: { id: Number(req.params.id) },
-    })
-    res.json({ message: '已刪除' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '品項不存在' })
-      return
-    }
-    if (e.code === 'P2003') {
-      res.status(409).json({ error: '無法刪除：此品項仍有關聯的合約或車趟' })
-      return
-    }
-    throw e
-  }
-})
+router.delete('/:id', authorize('super_admin'), createHardDeleteHandler('item', '品項', '無法刪除：此品項仍有關聯的合約或車趟'))
 
 export default router

@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt'
 import prisma from '../lib/prisma'
 import { validatePassword } from '../middleware/validate-password'
 import { authorize } from '../middleware/authorize'
+import { createDeactivateHandler, createReactivateHandler, createHardDeleteHandler } from './helpers'
 
 const router = Router()
 
@@ -142,57 +143,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
 })
 
 // PATCH /api/users/:id/deactivate — 停用
-router.patch('/:id/deactivate', async (req: Request, res: Response) => {
-  try {
-    await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'inactive' },
-    })
-    res.json({ message: '已停用' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '使用者不存在' })
-      return
-    }
-    throw e
-  }
-})
+router.patch('/:id/deactivate', createDeactivateHandler('user', '使用者'))
 
 // PATCH /api/users/:id/reactivate — 啟用（恢復 active）
-router.patch('/:id/reactivate', async (req: Request, res: Response) => {
-  try {
-    await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'active' },
-    })
-    res.json({ message: '已啟用' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '使用者不存在' })
-      return
-    }
-    throw e
-  }
-})
+router.patch('/:id/reactivate', createReactivateHandler('user', '使用者'))
 
 // DELETE /api/users/:id — 硬刪除
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    await prisma.user.delete({
-      where: { id: Number(req.params.id) },
-    })
-    res.json({ message: '已刪除' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '使用者不存在' })
-      return
-    }
-    if (e.code === 'P2003') {
-      res.status(409).json({ error: '無法刪除：此使用者仍有關聯的審核紀錄' })
-      return
-    }
-    throw e
-  }
-})
+router.delete('/:id', createHardDeleteHandler('user', '使用者', '無法刪除：此使用者仍有關聯的審核紀錄'))
 
 export default router

@@ -158,6 +158,61 @@ describe('PATCH /api/sites/:id/deactivate', () => {
   })
 })
 
+describe('PATCH /api/sites/:id/reactivate', () => {
+  it('啟用站區（狀態恢復 active）', async () => {
+    const res = await request(app)
+      .patch(`/api/sites/${createdSiteId}/reactivate`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已啟用')
+
+    // 確認狀態恢復 active
+    const check = await request(app)
+      .get(`/api/sites/${createdSiteId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(check.body.status).toBe('active')
+  })
+
+  it('啟用不存在的站區應回傳 404', async () => {
+    const res = await request(app)
+      .patch('/api/sites/999999/reactivate')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toHaveProperty('error')
+  })
+})
+
+describe('DELETE /api/sites/:id', () => {
+  it('硬刪除站區成功', async () => {
+    const res = await request(app)
+      .delete(`/api/sites/${createdSiteId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已刪除')
+
+    // 確認已被刪除
+    const check = await request(app)
+      .get(`/api/sites/${createdSiteId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(check.status).toBe(404)
+
+    // 清除 ID 避免 afterAll 重複刪除
+    createdSiteId = 0
+  })
+
+  it('刪除不存在的站區應回傳 404', async () => {
+    const res = await request(app)
+      .delete('/api/sites/999999')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toHaveProperty('error')
+  })
+})
+
 describe('認證保護', () => {
   it('無 token 存取站區應回傳 401', async () => {
     const res = await request(app).get('/api/sites')

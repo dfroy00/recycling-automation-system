@@ -3,7 +3,7 @@ import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
 import { authorize } from '../middleware/authorize'
-import { siteScope } from '../middleware/site-scope'
+import { siteScope, ScopedRequest } from '../middleware/site-scope'
 
 const router = Router()
 
@@ -15,6 +15,12 @@ router.get('/', siteScope(), async (req: Request, res: Response) => {
   const where: any = {}
   if (customerId) where.customerId = Number(customerId)
   if (status) where.status = status as string
+
+  // 非 super_admin 只能看到自己站區客戶的合約
+  const scopedReq = req as ScopedRequest
+  if (scopedReq.scopedSiteId) {
+    where.customer = { siteId: scopedReq.scopedSiteId }
+  }
 
   const { page, pageSize, skip, all } = parsePagination(req)
   const include = {
@@ -112,37 +118,38 @@ router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), asyn
   if (notes !== undefined) data.notes = notes
 
   try {
-    const contract = await prisma.contract.update({
-      where: { id: Number(req.params.id) },
-      data,
-      include: {
-        customer: { select: { id: true, name: true, type: true } },
-      },
-    })
-
-    // 合約與客戶類型聯動：狀態改為 terminated 時，檢查是否需降級客戶類型
-    if (contractStatus === 'terminated' && contract.customer.type === 'contracted') {
-      const activeCount = await prisma.contract.count({
-        where: {
-          customerId: contract.customer.id,
-          status: 'active',
+    const contract = await prisma.$transaction(async (tx) => {
+      const updated = await tx.contract.update({
+        where: { id: Number(req.params.id) },
+        data,
+        include: {
+          customer: { select: { id: true, name: true, type: true } },
         },
       })
-      if (activeCount === 0) {
-        await prisma.customer.update({
-          where: { id: contract.customer.id },
-          data: { type: 'temporary' },
+
+      // 合約與客戶類型聯動：狀態改為 terminated 時，檢查是否需降級客戶類型
+      if (contractStatus === 'terminated' && updated.customer.type === 'contracted') {
+        const activeCount = await tx.contract.count({
+          where: { customerId: updated.customer.id, status: 'active' },
+        })
+        if (activeCount === 0) {
+          await tx.customer.update({
+            where: { id: updated.customer.id },
+            data: { type: 'temporary' },
+          })
+        }
+      }
+
+      // 合約與客戶類型聯動：狀態改為 active 時，自動升級臨時客戶為簽約客戶
+      if (contractStatus === 'active' && updated.customer.type === 'temporary') {
+        await tx.customer.update({
+          where: { id: updated.customer.id },
+          data: { type: 'contracted' },
         })
       }
-    }
 
-    // 合約與客戶類型聯動：狀態改為 active 時，自動升級臨時客戶為簽約客戶
-    if (contractStatus === 'active' && contract.customer.type === 'temporary') {
-      await prisma.customer.update({
-        where: { id: contract.customer.id },
-        data: { type: 'contracted' },
-      })
-    }
+      return updated
+    })
 
     res.json(contract)
   } catch (e: any) {
@@ -161,27 +168,26 @@ router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), asyn
 // DELETE /api/contracts/:id — 刪除（設為 terminated）— 僅 super_admin 和 site_manager
 router.delete('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
-    const contract = await prisma.contract.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'terminated' },
-      include: { customer: { select: { id: true, type: true } } },
-    })
-
-    // 合約與客戶類型聯動：終止合約後，若該客戶已無任何 active 合約，降級為臨時客戶
-    if (contract.customer.type === 'contracted') {
-      const activeCount = await prisma.contract.count({
-        where: {
-          customerId: contract.customer.id,
-          status: 'active',
-        },
+    await prisma.$transaction(async (tx) => {
+      const contract = await tx.contract.update({
+        where: { id: Number(req.params.id) },
+        data: { status: 'terminated' },
+        include: { customer: { select: { id: true, type: true } } },
       })
-      if (activeCount === 0) {
-        await prisma.customer.update({
-          where: { id: contract.customer.id },
-          data: { type: 'temporary' },
+
+      // 合約與客戶類型聯動：終止合約後，若該客戶已無任何 active 合約，降級為臨時客戶
+      if (contract.customer.type === 'contracted') {
+        const activeCount = await tx.contract.count({
+          where: { customerId: contract.customer.id, status: 'active' },
         })
+        if (activeCount === 0) {
+          await tx.customer.update({
+            where: { id: contract.customer.id },
+            data: { type: 'temporary' },
+          })
+        }
       }
-    }
+    })
 
     res.json({ message: '已終止' })
   } catch (e: any) {

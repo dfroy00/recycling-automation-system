@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
 import { authorize } from '../middleware/authorize'
+import { createDeactivateHandler, createReactivateHandler, createHardDeleteHandler } from './helpers'
 
 const router = Router()
 
@@ -91,57 +92,12 @@ router.patch('/:id', authorize('super_admin'), async (req: Request, res: Respons
 })
 
 // PATCH /api/business-entities/:id/deactivate — 停用 — 僅 super_admin
-router.patch('/:id/deactivate', authorize('super_admin'), async (req: Request, res: Response) => {
-  try {
-    await prisma.businessEntity.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'inactive' },
-    })
-    res.json({ message: '已停用' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '行號不存在' })
-      return
-    }
-    throw e
-  }
-})
+router.patch('/:id/deactivate', authorize('super_admin'), createDeactivateHandler('businessEntity', '行號'))
 
 // PATCH /api/business-entities/:id/reactivate — 啟用（恢復 active）— 僅 super_admin
-router.patch('/:id/reactivate', authorize('super_admin'), async (req: Request, res: Response) => {
-  try {
-    await prisma.businessEntity.update({
-      where: { id: Number(req.params.id) },
-      data: { status: 'active' },
-    })
-    res.json({ message: '已啟用' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '行號不存在' })
-      return
-    }
-    throw e
-  }
-})
+router.patch('/:id/reactivate', authorize('super_admin'), createReactivateHandler('businessEntity', '行號'))
 
 // DELETE /api/business-entities/:id — 硬刪除 — 僅 super_admin
-router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
-  try {
-    await prisma.businessEntity.delete({
-      where: { id: Number(req.params.id) },
-    })
-    res.json({ message: '已刪除' })
-  } catch (e: any) {
-    if (e.code === 'P2025') {
-      res.status(404).json({ error: '行號不存在' })
-      return
-    }
-    if (e.code === 'P2003') {
-      res.status(409).json({ error: '無法刪除：此行號仍有關聯的客戶或明細' })
-      return
-    }
-    throw e
-  }
-})
+router.delete('/:id', authorize('super_admin'), createHardDeleteHandler('businessEntity', '行號', '無法刪除：此行號仍有關聯的客戶或明細'))
 
 export default router
