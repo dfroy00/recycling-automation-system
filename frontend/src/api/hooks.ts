@@ -516,6 +516,8 @@ export function useCreateContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      // 合約與客戶類型聯動：新增合約可能更新客戶類型
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
       message.success('合約新增成功')
     },
     onError: () => {
@@ -549,6 +551,8 @@ export function useDeleteContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      // 合約與客戶類型聯動：終止合約可能更新客戶類型
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
       message.success('合約刪除成功')
     },
     onError: () => {

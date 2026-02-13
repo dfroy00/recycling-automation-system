@@ -77,9 +77,18 @@ router.post('/', async (req: Request, res: Response) => {
         notes,
       },
       include: {
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, type: true } },
       },
     })
+
+    // 合約與客戶類型聯動：新增合約後，若客戶為臨時客戶則自動升級為簽約客戶
+    if (contract.customer.type === 'temporary') {
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: { type: 'contracted' },
+      })
+    }
+
     res.status(201).json(contract)
   } catch (e: any) {
     if (e.code === 'P2002') {
@@ -125,10 +134,28 @@ router.patch('/:id', async (req: Request, res: Response) => {
 // DELETE /api/contracts/:id — 刪除（設為 terminated）
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    await prisma.contract.update({
+    const contract = await prisma.contract.update({
       where: { id: Number(req.params.id) },
       data: { status: 'terminated' },
+      include: { customer: { select: { id: true, type: true } } },
     })
+
+    // 合約與客戶類型聯動：終止合約後，若該客戶已無任何 active 合約，降級為臨時客戶
+    if (contract.customer.type === 'contracted') {
+      const activeCount = await prisma.contract.count({
+        where: {
+          customerId: contract.customer.id,
+          status: 'active',
+        },
+      })
+      if (activeCount === 0) {
+        await prisma.customer.update({
+          where: { id: contract.customer.id },
+          data: { type: 'temporary' },
+        })
+      }
+    }
+
     res.json({ message: '已終止' })
   } catch (e: any) {
     if (e.code === 'P2025') {

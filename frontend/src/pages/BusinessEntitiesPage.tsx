@@ -53,13 +53,14 @@ export default function BusinessEntitiesPage() {
 
   // 表格欄位
   const columns = [
-    { title: '行號名稱', dataIndex: 'name', key: 'name' },
-    { title: '統一編號', dataIndex: 'taxId', key: 'taxId' },
+    { title: '行號名稱', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '統一編號', dataIndex: 'taxId', key: 'taxId', width: 120 },
     { title: '營業項目', dataIndex: 'bizItems', key: 'bizItems', responsive: ['lg' as const], ellipsis: true },
     {
       title: '狀態',
       dataIndex: 'status',
       key: 'status',
+      width: 80,
       render: (status: string) => (
         <Tag color={status === 'active' ? 'green' : 'default'}>
           {status === 'active' ? '啟用' : '停用'}
@@ -69,13 +70,18 @@ export default function BusinessEntitiesPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 140,
+      fixed: 'right' as const,
       render: (_: unknown, record: BusinessEntity) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(record)}>
             編輯
           </Button>
-          <Popconfirm title="確定刪除此行號？" onConfirm={() => deleteEntity.mutate(record.id)}>
+          <Popconfirm
+            title="確定刪除此行號？"
+            onConfirm={() => deleteEntity.mutate(record.id)}
+            getPopupContainer={(trigger) => trigger.parentElement || document.body}
+          >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               刪除
             </Button>
@@ -135,6 +141,7 @@ export default function BusinessEntitiesPage() {
           dataSource={data?.data ?? []}
           rowKey="id"
           loading={isLoading}
+          scroll={{ x: 800 }}
           pagination={{
             current: page,
             pageSize: 20,

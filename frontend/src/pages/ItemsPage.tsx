@@ -10,6 +10,10 @@ import type { Item, ItemFormData } from '../types'
 
 const { Title } = Typography
 
+// 品項分類固定選項（依 Spec Section 8.4）
+const ITEM_CATEGORIES = ['紙類', '鐵類', '五金類', '塑膠類', '雜項'] as const
+const CATEGORY_OPTIONS = ITEM_CATEGORIES.map((c) => ({ value: c, label: c }))
+
 export default function ItemsPage() {
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
@@ -47,11 +51,6 @@ export default function ItemsPage() {
     form.resetFields()
     setEditingItem(null)
   }
-
-  // 從現有資料提取分類選項
-  const categories = Array.from(
-    new Set((data?.data ?? []).map((item) => item.category).filter(Boolean))
-  ) as string[]
 
   // 表格欄位
   const columns = [
@@ -106,7 +105,7 @@ export default function ItemsPage() {
           style={{ width: 200 }}
           value={categoryFilter}
           onChange={(val) => { setCategoryFilter(val); setPage(1) }}
-          options={categories.map((c) => ({ value: c, label: c }))}
+          options={CATEGORY_OPTIONS}
         />
       </div>
 
@@ -174,7 +173,11 @@ export default function ItemsPage() {
             <Input placeholder="請輸入品項名稱" />
           </Form.Item>
           <Form.Item name="category" label="分類">
-            <Input placeholder="請輸入分類（如：紙類、塑膠類）" />
+            <Select
+              allowClear
+              placeholder="請選擇分類"
+              options={CATEGORY_OPTIONS}
+            />
           </Form.Item>
           <Form.Item name="unit" label="計量單位" rules={[{ required: true, message: '請輸入計量單位' }]}>
             <Input placeholder="請輸入單位（如：kg、件、袋）" />
