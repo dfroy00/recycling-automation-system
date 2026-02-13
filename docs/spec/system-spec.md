@@ -1,7 +1,7 @@
 # 回收業務自動化系統 — 系統規格書
 
-> **版本**：1.0
-> **日期**：2026-02-12
+> **版本**：2.0
+> **日期**：2026-02-13
 > **用途**：提供完整的系統規格，供開發者依照 Spec-Driven Development 流程從零實作
 
 ---
@@ -47,9 +47,11 @@
 - Email 通知寄送
 - 外部系統 Adapter 整合（Mock 實作）
 - 排程自動化（月結產出、寄送檢查、合約到期提醒）
+- **三層權限系統**（super_admin / site_manager / site_staff，站區級資料隔離）
+- **客戶詳情頁**（Tab 架構整合合約/附加費用/車趟/明細）
+- **合約與客戶聯動**（新增合約自動更新客戶類型為簽約）
 
 **不做：**
-- 權限分離（所有使用者同等權限，統一 admin 角色）
 - LINE 通知（預留介面，不實作）
 - 真實 POS / 車機 API 接入（使用 Mock DB 模擬）
 - 報價簽約流程（系統外處理，只管理已簽約的合約）
@@ -120,7 +122,8 @@ Site 1──* Customer 1──* Trip 1──* TripItem *──1 Item
 BusinessEntity 1──* Customer
                1──* Statement
 
-User 1──* SystemLog
+User *──1 Site（站區綁定，super_admin 為 null）
+     1──* SystemLog
      1──* Statement (reviewedBy / voidedBy)
 
 Holiday（獨立）
@@ -385,10 +388,21 @@ draft ──> approved ──> invoiced ──> sent
 | passwordHash | String | | 密碼雜湊（bcrypt, salt=10） |
 | name | String | | 姓名 |
 | email | String | 選填 | Email |
-| role | String | default: "admin" | MVP 統一 admin |
+| role | String | default: "site_staff" | `super_admin` / `site_manager` / `site_staff` |
+| siteId | Int | 選填, FK → Site | 綁定站區（super_admin 為 null 代表全站區） |
 | status | String | default: "active" | `active` / `inactive` |
 | createdAt | DateTime | auto | |
 | updatedAt | DateTime | auto | |
+
+**關聯**：`site?`, `reviewedStatements[]`, `voidedStatements[]`, `systemLogs[]`
+
+**角色定義**：
+
+| 角色 | `role` 值 | `siteId` | 可存取範圍 | 操作權限 |
+|------|-----------|----------|-----------|----------|
+| 系統管理員 | `super_admin` | `null` | 所有站區 | 完整 CRUD + 審核 + 使用者管理 |
+| 站區主管 | `site_manager` | 綁定站區 ID | 僅自己站區 | CRUD 客戶/合約/車趟 + 審核明細 |
+| 站區人員 | `site_staff` | 綁定站區 ID | 僅自己站區 | 唯讀（查看資料但不能修改） |
 
 #### SystemLog（系統日誌）
 
@@ -449,6 +463,30 @@ draft ──> approved ──> invoiced ──> sent
 
 **認證**：除 `POST /api/auth/login` 外，所有 API 需攜帶 `Authorization: Bearer <JWT>` 標頭。
 
+**授權中介層**（三層設計）：
+
+| 層級 | 中介層 | 說明 |
+|------|--------|------|
+| 1 | `authMiddleware` | 驗證 JWT token，解析 userId、role、siteId |
+| 2 | `authorize(...roles)` | 檢查使用者角色是否在允許清單中，不符回傳 403 |
+| 3 | `siteScope()` | 非 super_admin 自動注入 siteId 過濾，限制資料範圍 |
+
+**各路由權限矩陣**：
+
+| 路由 | GET（讀取） | POST/PATCH/DELETE（寫入） |
+|------|-----------|------------------------|
+| customers | 所有角色 + siteScope | super_admin + site_manager + siteScope |
+| contracts | 所有角色 + siteScope | super_admin + site_manager + siteScope |
+| trips | 所有角色 + siteScope | super_admin + site_manager + siteScope |
+| statements | 所有角色 + siteScope | super_admin + site_manager + siteScope |
+| sites | 所有角色 | 僅 super_admin |
+| items | 所有角色 | 僅 super_admin |
+| users | 僅 super_admin | 僅 super_admin |
+| holidays | 所有角色 | 僅 super_admin |
+| dashboard | 所有角色 + siteScope | N/A |
+| sync | 僅 super_admin | 僅 super_admin |
+| business-entities | 所有角色 | 僅 super_admin |
+
 **分頁回傳格式**：
 
 ```json
@@ -503,7 +541,7 @@ draft ──> approved ──> invoiced ──> sent
 ```json
 {
   "token": "eyJhbGciOi...",
-  "user": { "id": 1, "username": "admin", "name": "系統管理員", "role": "admin" }
+  "user": { "id": 1, "username": "admin", "name": "系統管理員", "role": "super_admin", "siteId": null }
 }
 ```
 
@@ -517,7 +555,7 @@ draft ──> approved ──> invoiced ──> sent
 
 **200 Response**：
 ```json
-{ "id": 1, "username": "admin", "name": "系統管理員", "email": null, "role": "admin" }
+{ "id": 1, "username": "admin", "name": "系統管理員", "email": null, "role": "super_admin", "siteId": null }
 ```
 
 ---
@@ -914,6 +952,11 @@ draft ──> approved ──> invoiced ──> sent
 
 **合約到期降級**：簽約客戶的所有有效合約全部到期時，新增車趟品項時改為手動輸入模式（等同臨時客戶），UI 提示「無有效合約」，但不阻止建立。
 
+**合約與客戶類型聯動**：
+- 新增合約（`POST /api/contracts`）成功後，若客戶 `type` 為 `temporary`，自動更新為 `contracted`
+- 終止/刪除合約後，若該客戶已無任何 `active` 合約，自動將 `type` 改回 `temporary`
+- 前端 hooks 在合約 mutation 成功後需同時 invalidate `contracts` 和 `customers` cache
+
 ### 4.2 車趟品項快照邏輯
 
 新增車趟品項時，系統自動決定單價和方向的來源：
@@ -1049,24 +1092,29 @@ draft ──> approved ──> invoiced ──> sent
 ### 5.2 側邊選單結構
 
 ```
-儀表板                    /dashboard
+儀表板                    /dashboard          所有角色
 基礎資料
-  ├─ 站區管理             /sites
-  ├─ 品項管理             /items
-  ├─ 客戶管理             /customers
-  ├─ 行號管理             /business-entities
-  └─ 合約管理             /contracts
+  ├─ 站區管理             /sites              所有角色（寫入僅 super_admin）
+  ├─ 品項管理             /items              所有角色（寫入僅 super_admin）
+  ├─ 客戶管理             /customers          所有角色（siteScope 過濾）
+  ├─ 行號管理             /business-entities  所有角色（寫入僅 super_admin）
+  └─ 合約總覽             /contracts          僅 super_admin
 營運管理
-  ├─ 車趟管理             /trips
-  └─ 外部同步             /sync
+  ├─ 車趟管理             /trips              所有角色（siteScope 過濾）
+  └─ 外部同步             /sync               僅 super_admin
 帳務管理
-  ├─ 月結管理             /statements
-  └─ 報表                /reports
-系統
+  ├─ 月結管理             /statements         所有角色（siteScope 過濾）
+  └─ 報表                /reports             所有角色（siteScope 過濾）
+系統                                          僅 super_admin
   ├─ 使用者               /users
   ├─ 假日設定             /holidays
   └─ 排程管理             /schedule
 ```
+
+**角色動態控制**：
+- `site_staff`：所有寫入按鈕（新增/編輯/刪除/審核）隱藏
+- `site_manager`：主檔管理（站區/品項/行號/假日）寫入按鈕隱藏
+- `super_admin`：全部功能可見
 
 ### 5.3 頁面規格
 
@@ -1102,17 +1150,35 @@ draft ──> approved ──> invoiced ──> sent
 
 #### CustomersPage `/customers`
 
-- 資料表格：名稱、站區、類型、結算方式、通知方式、狀態、操作
-- 篩選：站區下拉、類型篩選
-- 新增 / 編輯 → Modal 表單（包含所有客戶設定欄位）
-- 客戶詳情包含附加費用管理子區塊
+- 資料表格：名稱、站區、類型、合約摘要、結算方式、操作
+- 篩選：站區下拉、類型篩選、名稱搜尋
+- 客戶名稱為超連結，點擊導航到 `/customers/:id` 詳情頁
+- 「新增客戶」按鈕 → 導航到 `/customers/new`
+- **不使用 Modal 編輯**，所有編輯在詳情頁完成
 
-#### ContractsPage `/contracts`
+#### CustomerDetailPage `/customers/:id`
+
+- **Tab 架構**，5 個分頁：
+
+| Tab | 內容 | 說明 |
+|-----|------|------|
+| 基本資料 | 客戶所有設定欄位（inline 表單） | 可直接編輯並儲存（可編輯角色） |
+| 合約管理 | 該客戶的合約列表 + 新增/編輯合約 + 合約品項 | customerId 自動帶入 |
+| 附加費用 | 費用列表 + 新增/編輯 | 從原 CustomersPage Modal 獨立出來 |
+| 車趟紀錄 | 該客戶的車趟歷史（唯讀） | 支援月份篩選 |
+| 結算明細 | 該客戶的月結/按趟明細（唯讀） | 支援月份篩選 |
+
+- 各 Tab 懶載入：切換到該 Tab 時才發請求
+- `/customers/new`：新增模式，只顯示基本資料 Tab
+- 「返回列表」按鈕導航回 `/customers`
+- `site_staff` 角色：表單 disabled，無儲存按鈕
+
+#### ContractsPage `/contracts`（合約總覽，僅 super_admin 可見）
 
 - 資料表格：合約編號、客戶、起訖日期、狀態、操作
 - 篩選：客戶下拉、狀態篩選
-- 新增 / 編輯 → Modal 表單
-- 展開列或子頁面：合約品項管理（品項、單價、方向）
+- 客戶名稱為超連結，導航到 `/customers/:id?tab=contracts`
+- 供系統管理員跨客戶檢視所有合約（如篩選即將到期合約）
 
 #### TripsPage `/trips`
 
@@ -1152,10 +1218,12 @@ draft ──> approved ──> invoiced ──> sent
 - 客戶月結 PDF 下載：選擇客戶 + 月份 → 下載
 - 站區彙總 Excel 下載：選擇站區 + 月份 → 下載
 
-#### UsersPage `/users`
+#### UsersPage `/users`（僅 super_admin 可見）
 
-- 資料表格：帳號、姓名、Email、角色、狀態、操作
+- 資料表格：帳號、姓名、Email、角色、所屬站區、狀態、操作
 - 新增 / 編輯 → Modal 表單
+- 角色選擇：super_admin / site_manager / site_staff
+- 非 super_admin 角色需選擇所屬站區
 
 #### HolidaysPage `/holidays`
 
@@ -1350,9 +1418,11 @@ Adapter 介面
 
 ### 8.1 使用者
 
-| 帳號 | 密碼 | 姓名 | 角色 |
-|------|------|------|------|
-| admin | admin123 | 系統管理員 | admin |
+| 帳號 | 密碼 | 姓名 | 角色 | 站區 |
+|------|------|------|------|------|
+| admin | admin123 | 系統管理員 | super_admin | 全站區（null） |
+| manager1 | manager123 | 站區一主管 | site_manager | 新竹站 |
+| staff1 | staff123 | 站區一人員 | site_staff | 新竹站 |
 
 ### 8.2 站區（7 個）
 
