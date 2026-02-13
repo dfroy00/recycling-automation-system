@@ -20,7 +20,7 @@ beforeAll(async () => {
       username: 'users_test_auth',
       passwordHash,
       name: '使用者測試帳號',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   authUserId = user.id
@@ -50,7 +50,7 @@ describe('POST /api/users', () => {
         password: 'newpass123',
         name: '新使用者',
         email: 'new@example.com',
-        role: 'admin',
+        role: 'super_admin',
       })
 
     expect(res.status).toBe(201)
@@ -58,7 +58,7 @@ describe('POST /api/users', () => {
       username: 'newuser_test',
       name: '新使用者',
       email: 'new@example.com',
-      role: 'admin',
+      role: 'super_admin',
     })
     // 不應回傳 passwordHash
     expect(res.body).not.toHaveProperty('passwordHash')
@@ -79,6 +79,7 @@ describe('POST /api/users', () => {
         username: 'newuser_test',
         password: 'pass12345',
         name: '重複帳號',
+        role: 'super_admin',
       })
 
     expect(res.status).toBe(409)
@@ -174,14 +175,14 @@ describe('PATCH /api/users/:id', () => {
   })
 })
 
-describe('DELETE /api/users/:id', () => {
+describe('PATCH /api/users/:id/deactivate', () => {
   it('軟刪除使用者（狀態改為 inactive）', async () => {
     const res = await request(app)
-      .delete(`/api/users/${createdUserId}`)
+      .patch(`/api/users/${createdUserId}/deactivate`)
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toHaveProperty('message')
+    expect(res.body.message).toBe('已停用')
 
     // 確認狀態改為 inactive
     const check = await request(app)
@@ -190,9 +191,9 @@ describe('DELETE /api/users/:id', () => {
     expect(check.body.status).toBe('inactive')
   })
 
-  it('刪除不存在的使用者應回傳 404', async () => {
+  it('停用不存在的使用者應回傳 404', async () => {
     const res = await request(app)
-      .delete('/api/users/999999')
+      .patch('/api/users/999999/deactivate')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)

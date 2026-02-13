@@ -30,7 +30,7 @@ beforeAll(async () => {
       username: 'fees_test_user',
       passwordHash,
       name: '費用測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id
@@ -235,23 +235,23 @@ describe('PATCH /api/customers/:cid/fees/:fid', () => {
   })
 })
 
-describe('DELETE /api/customers/:cid/fees/:fid', () => {
+describe('PATCH /api/customers/:cid/fees/:fid/deactivate', () => {
   it('軟刪除附加費用（狀態改為 inactive）', async () => {
     const res = await request(app)
-      .delete(`/api/customers/${monthlyCustomerId}/fees/${createdFeeId}`)
+      .patch(`/api/customers/${monthlyCustomerId}/fees/${createdFeeId}/deactivate`)
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toHaveProperty('message')
+    expect(res.body.message).toBe('已停用')
 
     // 確認狀態
     const fee = await prisma.customerFee.findUnique({ where: { id: createdFeeId } })
     expect(fee!.status).toBe('inactive')
   })
 
-  it('刪除不存在的附加費用應回傳 404', async () => {
+  it('停用不存在的附加費用應回傳 404', async () => {
     const res = await request(app)
-      .delete(`/api/customers/${monthlyCustomerId}/fees/999999`)
+      .patch(`/api/customers/${monthlyCustomerId}/fees/999999/deactivate`)
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)

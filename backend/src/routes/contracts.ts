@@ -116,9 +116,34 @@ router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), asyn
       where: { id: Number(req.params.id) },
       data,
       include: {
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, type: true } },
       },
     })
+
+    // 合約與客戶類型聯動：狀態改為 terminated 時，檢查是否需降級客戶類型
+    if (contractStatus === 'terminated' && contract.customer.type === 'contracted') {
+      const activeCount = await prisma.contract.count({
+        where: {
+          customerId: contract.customer.id,
+          status: 'active',
+        },
+      })
+      if (activeCount === 0) {
+        await prisma.customer.update({
+          where: { id: contract.customer.id },
+          data: { type: 'temporary' },
+        })
+      }
+    }
+
+    // 合約與客戶類型聯動：狀態改為 active 時，自動升級臨時客戶為簽約客戶
+    if (contractStatus === 'active' && contract.customer.type === 'temporary') {
+      await prisma.customer.update({
+        where: { id: contract.customer.id },
+        data: { type: 'contracted' },
+      })
+    }
+
     res.json(contract)
   } catch (e: any) {
     if (e.code === 'P2025') {

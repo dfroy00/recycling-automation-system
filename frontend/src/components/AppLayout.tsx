@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Layout, Menu, Drawer, Button, Dropdown, theme } from 'antd'
+import { Layout, Menu, Drawer, Button, Dropdown, Tag, theme } from 'antd'
 import {
   DashboardOutlined,
   EnvironmentOutlined,
@@ -90,7 +90,14 @@ function getOpenKeys(pathname: string, items: ReturnType<typeof getMenuItems>): 
 
 export default function AppLayout() {
   const { isMobile, isDesktop } = useResponsive()
-  const { user, logout, canManageSystem } = useAuth()
+  const { user, logout, canManageSystem, isSuperAdmin, isSiteManager } = useAuth()
+
+  // 角色標籤
+  const roleLabels: Record<string, string> = {
+    super_admin: '系統管理員',
+    site_manager: '站區主管',
+    site_staff: '站區人員',
+  }
   const menuItems = getMenuItems(canManageSystem)
   const navigate = useNavigate()
   const location = useLocation()
@@ -231,11 +238,18 @@ export default function AppLayout() {
           </div>
 
           {/* 使用者資訊 */}
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <Button type="text" icon={<UserOutlined />}>
-              {!isMobile && (user?.name || user?.username || '使用者')}
-            </Button>
-          </Dropdown>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {!isMobile && user?.role && (
+              <Tag color={isSuperAdmin ? 'red' : isSiteManager ? 'blue' : 'default'}>
+                {roleLabels[user.role] ?? user.role}
+              </Tag>
+            )}
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+              <Button type="text" icon={<UserOutlined />}>
+                {!isMobile && (user?.name || user?.username || '使用者')}
+              </Button>
+            </Dropdown>
+          </div>
         </Header>
 
         {/* 主要內容區 */}

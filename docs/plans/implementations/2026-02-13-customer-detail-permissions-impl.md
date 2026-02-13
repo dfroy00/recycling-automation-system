@@ -1866,10 +1866,8 @@ git commit -m "test: 全面測試權限系統和客戶詳情頁"
 
 ### Phase 2：權限系統 — 前端
 - [x] Task 7：AuthContext 擴充（小）
-- [~] Task 8：AppLayout 選單權限（小）
-  > ⚠️ 備註：選單過濾已完成，但 Header 缺少角色標籤 Tag 顯示
-- [~] Task 9：使用者管理頁面（小）
-  > ⚠️ 備註：UsersPage 表單角色下拉仍只有 admin，未改為三角色（super_admin / site_manager / site_staff）+ 站區欄位
+- [x] Task 8：AppLayout 選單權限（小）
+- [x] Task 9：使用者管理頁面（小）
 
 ### Phase 3：客戶詳情頁 — 前端
 - [x] Task 10：CustomerDetailPage 骨架（小）
@@ -1880,7 +1878,6 @@ git commit -m "test: 全面測試權限系統和客戶詳情頁"
 - [x] Task 15：結算明細 Tab（小）
 - [x] Task 16：CustomersPage 重構（中）
 - [x] Task 17：新增客戶功能（小）
-- [~] Task 18：合約總覽頁更新（小）
-  > ⚠️ 備註：合約總覽頁已有客戶連結，但缺少 useAuth 權限控制操作按鈕
-- [ ] Task 19：各頁面權限控制收尾（中）
-- [ ] Task 20：全面測試（中）
+- [x] Task 18：合約總覽頁更新（小）
+- [x] Task 19：各頁面權限控制收尾（中）
+- [x] Task 20：全面測試（中）

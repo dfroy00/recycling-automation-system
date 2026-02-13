@@ -14,7 +14,7 @@ beforeAll(async () => {
   const user = await prisma.user.upsert({
     where: { username: 'test_trips' },
     update: { passwordHash },
-    create: { username: 'test_trips', passwordHash, name: '車趟測試員', role: 'admin' },
+    create: { username: 'test_trips', passwordHash, name: '車趟測試員', role: 'super_admin' },
   })
 
   // 登入取得 token

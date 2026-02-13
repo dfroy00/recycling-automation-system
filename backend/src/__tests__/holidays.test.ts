@@ -17,7 +17,7 @@ beforeAll(async () => {
       username: 'holidays_test_user',
       passwordHash,
       name: '假日測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id

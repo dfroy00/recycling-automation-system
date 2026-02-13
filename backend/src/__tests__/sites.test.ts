@@ -17,7 +17,7 @@ beforeAll(async () => {
       username: 'sites_test_user',
       passwordHash,
       name: '站區測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id
@@ -132,14 +132,14 @@ describe('PATCH /api/sites/:id', () => {
   })
 })
 
-describe('DELETE /api/sites/:id', () => {
+describe('PATCH /api/sites/:id/deactivate', () => {
   it('軟刪除站區（狀態改為 inactive）', async () => {
     const res = await request(app)
-      .delete(`/api/sites/${createdSiteId}`)
+      .patch(`/api/sites/${createdSiteId}/deactivate`)
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toHaveProperty('message')
+    expect(res.body.message).toBe('已停用')
 
     // 確認狀態改為 inactive
     const check = await request(app)
@@ -148,9 +148,9 @@ describe('DELETE /api/sites/:id', () => {
     expect(check.body.status).toBe('inactive')
   })
 
-  it('刪除不存在的站區應回傳 404', async () => {
+  it('停用不存在的站區應回傳 404', async () => {
     const res = await request(app)
-      .delete('/api/sites/999999')
+      .patch('/api/sites/999999/deactivate')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)

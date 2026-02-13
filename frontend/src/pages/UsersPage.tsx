@@ -4,11 +4,30 @@ import {
   Popconfirm, Typography, List, Tag,
 } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useUsers, useCreateUser, useUpdateUser, useDeactivateUser, useDeleteUser, useReactivateUser } from '../api/hooks'
+import { useUsers, useCreateUser, useUpdateUser, useDeactivateUser, useDeleteUser, useReactivateUser, useSites } from '../api/hooks'
 import { useResponsive } from '../hooks/useResponsive'
 import type { User, UserFormData } from '../types'
 
 const { Title } = Typography
+
+// 角色選項與標籤
+const roleOptions = [
+  { value: 'super_admin', label: '系統管理員' },
+  { value: 'site_manager', label: '站區主管' },
+  { value: 'site_staff', label: '站區人員' },
+]
+const roleLabels: Record<string, string> = {
+  super_admin: '系統管理員',
+  site_manager: '站區主管',
+  site_staff: '站區人員',
+  admin: '管理員',
+}
+const roleColors: Record<string, string> = {
+  super_admin: 'red',
+  site_manager: 'blue',
+  site_staff: 'default',
+  admin: 'purple',
+}
 
 export default function UsersPage() {
   const { isMobile } = useResponsive()
@@ -19,6 +38,7 @@ export default function UsersPage() {
 
   // 後端回傳純陣列，無分頁
   const { data, isLoading } = useUsers()
+  const { data: sitesData } = useSites({ all: true })
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deactivateUser = useDeactivateUser()
@@ -29,11 +49,19 @@ export default function UsersPage() {
   const users = data ?? []
   const filteredUsers = statusFilter ? users.filter(u => u.status === statusFilter) : users
 
+  // 站區下拉選項
+  const siteOptions = (sitesData?.data ?? [])
+    .filter(s => s.status === 'active')
+    .map(s => ({ value: s.id, label: s.name }))
+
+  // 監聽角色欄位變化
+  const watchedRole = Form.useWatch('role', form)
+
   // 開啟新增/編輯 Modal
   const openModal = (user?: User) => {
     if (user) {
       setEditingUser(user)
-      form.setFieldsValue({ ...user, password: undefined })
+      form.setFieldsValue({ ...user, password: undefined, siteId: (user as any).siteId ?? undefined })
     } else {
       setEditingUser(null)
       form.resetFields()
@@ -47,6 +75,10 @@ export default function UsersPage() {
     // 編輯時，密碼為空表示不修改
     if (editingUser && !values.password) {
       delete values.password
+    }
+    // super_admin 不需要 siteId
+    if (values.role === 'super_admin') {
+      values.siteId = null
     }
     if (editingUser) {
       await updateUser.mutateAsync({ id: editingUser.id, ...values })
@@ -67,9 +99,17 @@ export default function UsersPage() {
       title: '角色',
       dataIndex: 'role',
       key: 'role',
-      width: 80,
+      width: 100,
       responsive: ['md' as const],
-      render: (role: string) => role === 'admin' ? '管理員' : role,
+      render: (role: string) => (
+        <Tag color={roleColors[role] ?? 'default'}>{roleLabels[role] ?? role}</Tag>
+      ),
+    },
+    {
+      title: '站區',
+      key: 'site',
+      responsive: ['lg' as const],
+      render: (_: unknown, record: User) => (record as any).site?.name ?? (record.role === 'super_admin' ? '全站區' : '-'),
     },
     {
       title: '狀態',
@@ -212,13 +252,23 @@ export default function UsersPage() {
           <Form.Item name="email" label="Email">
             <Input placeholder="請輸入 Email" />
           </Form.Item>
-          <Form.Item name="role" label="角色" initialValue="admin">
-            <Select
-              options={[
-                { value: 'admin', label: '管理員' },
-              ]}
-            />
+          <Form.Item name="role" label="角色" initialValue="super_admin">
+            <Select options={roleOptions} />
           </Form.Item>
+          {watchedRole && watchedRole !== 'super_admin' && (
+            <Form.Item
+              name="siteId"
+              label="所屬站區"
+              rules={[{ required: true, message: '非系統管理員需選擇站區' }]}
+            >
+              <Select
+                options={siteOptions}
+                placeholder="請選擇站區"
+                showSearch
+                optionFilterProp="label"
+              />
+            </Form.Item>
+          )}
           <Form.Item name="status" label="狀態" initialValue="active">
             <Select
               options={[

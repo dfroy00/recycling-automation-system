@@ -17,7 +17,7 @@ beforeAll(async () => {
       username: 'items_test_user',
       passwordHash,
       name: '品項測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id
@@ -143,14 +143,14 @@ describe('PATCH /api/items/:id', () => {
   })
 })
 
-describe('DELETE /api/items/:id', () => {
+describe('PATCH /api/items/:id/deactivate', () => {
   it('軟刪除品項（狀態改為 inactive）', async () => {
     const res = await request(app)
-      .delete(`/api/items/${createdItemId}`)
+      .patch(`/api/items/${createdItemId}/deactivate`)
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toHaveProperty('message')
+    expect(res.body.message).toBe('已停用')
 
     // 確認狀態改為 inactive
     const check = await request(app)
@@ -159,9 +159,9 @@ describe('DELETE /api/items/:id', () => {
     expect(check.body.status).toBe('inactive')
   })
 
-  it('刪除不存在的品項應回傳 404', async () => {
+  it('停用不存在的品項應回傳 404', async () => {
     const res = await request(app)
-      .delete('/api/items/999999')
+      .patch('/api/items/999999/deactivate')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)

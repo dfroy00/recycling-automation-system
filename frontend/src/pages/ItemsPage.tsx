@@ -5,6 +5,7 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useItems, useCreateItem, useUpdateItem, useDeactivateItem, useDeleteItem, useReactivateItem } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Item, ItemFormData } from '../types'
 
@@ -15,6 +16,7 @@ const ITEM_CATEGORIES = ['紙類', '鐵類', '五金類', '塑膠類', '雜項']
 const CATEGORY_OPTIONS = ITEM_CATEGORIES.map((c) => ({ value: c, label: c }))
 
 export default function ItemsPage() {
+  const { canManageSystem } = useAuth()
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>()
@@ -72,7 +74,7 @@ export default function ItemsPage() {
         </Tag>
       ),
     },
-    {
+    ...(canManageSystem ? [{
       title: '操作',
       key: 'actions',
       width: 220,
@@ -99,16 +101,18 @@ export default function ItemsPage() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>品項管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          {!isMobile && '新增品項'}
-        </Button>
+        {canManageSystem && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            {!isMobile && '新增品項'}
+          </Button>
+        )}
       </div>
 
       {/* 篩選列 */}
@@ -148,7 +152,7 @@ export default function ItemsPage() {
             <Card
               size="small"
               style={{ marginBottom: 8 }}
-              extra={
+              extra={canManageSystem ? (
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(item)} />
                   {item.status === 'active' ? (
@@ -162,7 +166,7 @@ export default function ItemsPage() {
                     <Button type="link" size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 </Space>
-              }
+              ) : undefined}
             >
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>#{item.id} {item.name}</div>
               <div style={{ color: '#666', fontSize: 12 }}>

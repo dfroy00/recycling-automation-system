@@ -13,6 +13,7 @@ import {
   useContractItems, useCreateContractItem, useUpdateContractItem, useDeleteContractItem,
   useCustomers, useItems,
 } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Contract, ContractFormData, ContractItem, ContractItemFormData } from '../types'
 
@@ -203,6 +204,7 @@ function ContractItemsSection({ contractId }: { contractId: number }) {
 
 // ==================== 合約管理主頁面 ====================
 export default function ContractsPage() {
+  const { canEdit } = useAuth()
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [filterCustomerId, setFilterCustomerId] = useState<number | undefined>()
@@ -312,7 +314,7 @@ export default function ContractsPage() {
         </Tag>
       ),
     },
-    {
+    ...(canEdit ? [{
       title: '操作',
       key: 'actions',
       width: 120,
@@ -328,7 +330,7 @@ export default function ContractsPage() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
@@ -336,9 +338,11 @@ export default function ContractsPage() {
       {/* 標題列 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>合約管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          {!isMobile && '新增合約'}
-        </Button>
+        {canEdit && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            {!isMobile && '新增合約'}
+          </Button>
+        )}
       </div>
 
       {/* 篩選列 */}
@@ -376,14 +380,14 @@ export default function ContractsPage() {
             <Card
               size="small"
               style={{ marginBottom: 8 }}
-              extra={
+              extra={canEdit ? (
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(contract)} />
                   <Popconfirm title="確定終止？" onConfirm={() => deleteContract.mutate(contract.id)}>
                     <Button type="link" size="small" danger icon={<CloseCircleOutlined />} />
                   </Popconfirm>
                 </Space>
-              }
+              ) : undefined}
             >
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
                 {contract.contractNumber}

@@ -16,7 +16,7 @@ beforeAll(async () => {
       passwordHash,
       name: '認證測試使用者',
       email: 'authtest@example.com',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id
@@ -39,7 +39,7 @@ describe('POST /api/auth/login', () => {
     expect(res.body.user).toMatchObject({
       username: 'auth_test_user',
       name: '認證測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     })
     // 不應回傳密碼
     expect(res.body.user).not.toHaveProperty('passwordHash')
@@ -93,7 +93,7 @@ describe('GET /api/auth/me', () => {
     expect(res.body).toMatchObject({
       username: 'auth_test_user',
       name: '認證測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     })
     // 不應回傳密碼
     expect(res.body).not.toHaveProperty('passwordHash')

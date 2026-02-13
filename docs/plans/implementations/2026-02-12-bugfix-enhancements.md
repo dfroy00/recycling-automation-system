@@ -52,10 +52,10 @@
 - [~] **Task 24:** 後端 — 抽取客戶類型同步輔助函數
   > ⚠️ 備註：POST/DELETE 有內聯邏輯但未抽取獨立函數
 - [x] **Task 25:** 後端 — POST /api/contracts 建立合約後同步客戶類型
-- [~] **Task 26:** 後端 — PATCH / DELETE 合約時同步客戶類型
-  > ⚠️ 備註：DELETE 已實作，PATCH 路由缺少同步邏輯
-- [~] **Task 27:** 前端 — 合約 hooks 同時 invalidate customers cache
-  > ⚠️ 備註：useCreateContract/useDeleteContract 已新增 invalidate，useUpdateContract 未新增
+- [x] **Task 26:** 後端 — PATCH / DELETE 合約時同步客戶類型
+  > 已完成：PATCH 路由加入 terminated → 降級、active → 升級的客戶類型同步邏輯
+- [x] **Task 27:** 前端 — 合約 hooks 同時 invalidate customers cache
+  > 已完成：useUpdateContract 的 onSuccess 加入 invalidate customers queryKey
 - [ ] **Task 28:** Playwright 整合驗證 — 合約與客戶類型同步
 
 ### Playwright 瀏覽器測試發現的額外問題（2026-02-12 新增）

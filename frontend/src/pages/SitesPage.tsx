@@ -5,12 +5,14 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useSites, useCreateSite, useUpdateSite, useDeactivateSite, useDeleteSite, useReactivateSite } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Site, SiteFormData } from '../types'
 
 const { Title } = Typography
 
 export default function SitesPage() {
+  const { canManageSystem } = useAuth()
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<string>('active')
@@ -65,7 +67,7 @@ export default function SitesPage() {
         </Tag>
       ),
     },
-    {
+    ...(canManageSystem ? [{
       title: '操作',
       key: 'actions',
       width: 220,
@@ -92,16 +94,18 @@ export default function SitesPage() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>站區管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          {!isMobile && '新增站區'}
-        </Button>
+        {canManageSystem && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            {!isMobile && '新增站區'}
+          </Button>
+        )}
       </div>
 
       {/* 狀態篩選 */}
@@ -133,7 +137,7 @@ export default function SitesPage() {
             <Card
               size="small"
               style={{ marginBottom: 8 }}
-              extra={
+              extra={canManageSystem ? (
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(site)} />
                   {site.status === 'active' ? (
@@ -147,7 +151,7 @@ export default function SitesPage() {
                     <Button type="link" size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 </Space>
-              }
+              ) : undefined}
             >
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{site.name}</div>
               <div style={{ color: '#666', fontSize: 12 }}>

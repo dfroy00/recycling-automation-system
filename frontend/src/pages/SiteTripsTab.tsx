@@ -11,6 +11,7 @@ import {
   useTrips, useCreateTrip, useUpdateTrip, useDeleteTrip,
   useCustomers,
 } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import TripItemsExpand from './TripItemsExpand'
 import type { Trip, TripFormData } from '../types'
@@ -39,6 +40,7 @@ interface SiteTripsTabProps {
  * 顯示指定站區的車趟列表，含篩選、新增、編輯、刪除功能
  */
 export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
+  const { canEdit } = useAuth()
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [filterCustomerId, setFilterCustomerId] = useState<number | undefined>()
@@ -138,7 +140,7 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
         </Tag>
       ),
     },
-    {
+    ...(canEdit ? [{
       title: '操作',
       key: 'actions',
       width: 160,
@@ -152,7 +154,7 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
@@ -177,9 +179,11 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
             }}
           />
         </Space>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          {!isMobile && '新增車趟'}
-        </Button>
+        {canEdit && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            {!isMobile && '新增車趟'}
+          </Button>
+        )}
       </div>
 
       {/* 桌面：表格（展開品項）/ 手機：卡片 */}
@@ -197,10 +201,14 @@ export default function SiteTripsTab({ siteId, siteName }: SiteTripsTabProps) {
               extra={
                 <Space>
                   <Button type="link" size="small" icon={<ExpandOutlined />} onClick={() => setDetailTrip(trip)} />
-                  <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(trip)} />
-                  <Popconfirm title="確定刪除此車趟？此操作無法復原。" onConfirm={() => deleteTrip.mutate(trip.id)}>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  {canEdit && (
+                    <>
+                      <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(trip)} />
+                      <Popconfirm title="確定刪除此車趟？此操作無法復原。" onConfirm={() => deleteTrip.mutate(trip.id)}>
+                        <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    </>
+                  )}
                 </Space>
               }
             >

@@ -30,7 +30,7 @@ beforeAll(async () => {
   await prisma.user.upsert({
     where: { username: 'test_ti' },
     update: { passwordHash },
-    create: { username: 'test_ti', passwordHash, name: '品項測試員', role: 'admin' },
+    create: { username: 'test_ti', passwordHash, name: '品項測試員', role: 'super_admin' },
   })
   const res = await request(app).post('/api/auth/login').send({ username: 'test_ti', password: 'test1234' })
   token = res.body.token

@@ -8,6 +8,7 @@ import {
   useBusinessEntities, useCreateBusinessEntity,
   useUpdateBusinessEntity, useDeactivateBusinessEntity, useDeleteBusinessEntity, useReactivateBusinessEntity,
 } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { BusinessEntity, BusinessEntityFormData } from '../types'
 
@@ -15,6 +16,7 @@ const { Title } = Typography
 const { TextArea } = Input
 
 export default function BusinessEntitiesPage() {
+  const { canManageSystem } = useAuth()
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<string>('active')
@@ -70,7 +72,7 @@ export default function BusinessEntitiesPage() {
         </Tag>
       ),
     },
-    {
+    ...(canManageSystem ? [{
       title: '操作',
       key: 'actions',
       width: 220,
@@ -106,16 +108,18 @@ export default function BusinessEntitiesPage() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>行號管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          {!isMobile && '新增行號'}
-        </Button>
+        {canManageSystem && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            {!isMobile && '新增行號'}
+          </Button>
+        )}
       </div>
 
       {/* 篩選列 */}
@@ -147,7 +151,7 @@ export default function BusinessEntitiesPage() {
             <Card
               size="small"
               style={{ marginBottom: 8 }}
-              extra={
+              extra={canManageSystem ? (
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openModal(entity)} />
                   {entity.status === 'active' ? (
@@ -161,7 +165,7 @@ export default function BusinessEntitiesPage() {
                     <Button type="link" size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 </Space>
-              }
+              ) : undefined}
             >
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{entity.name}</div>
               <div style={{ color: '#666', fontSize: 12 }}>

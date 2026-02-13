@@ -4,6 +4,20 @@ import app from '../app'
 import prisma from '../lib/prisma'
 import bcrypt from 'bcrypt'
 
+// Mock 掉寄送服務，避免測試中真正寄信或產 PDF
+// sendStatementEmail 原本會更新 statement 狀態，mock 中也需模擬此行為
+jest.mock('../services/notification.service', () => {
+  return {
+    sendStatementEmail: jest.fn().mockImplementation(async (statementId: number) => {
+      const prisma = require('../lib/prisma').default
+      await prisma.statement.update({
+        where: { id: statementId },
+        data: { status: 'sent', sentAt: new Date(), sentMethod: 'email' },
+      })
+    }),
+  }
+})
+
 let token: string
 let userId: number
 let siteId: number
@@ -27,7 +41,7 @@ beforeAll(async () => {
   const user = await prisma.user.upsert({
     where: { username: 'test_stmts' },
     update: { passwordHash },
-    create: { username: 'test_stmts', passwordHash, name: '明細測試員', role: 'admin' },
+    create: { username: 'test_stmts', passwordHash, name: '明細測試員', role: 'super_admin' },
   })
   userId = user.id
   const res = await request(app).post('/api/auth/login').send({ username: 'test_stmts', password: 'test1234' })
@@ -56,6 +70,7 @@ beforeAll(async () => {
       tripFeeEnabled: false,
       statementType: 'monthly', paymentType: 'lump_sum',
       invoiceRequired: false, notificationMethod: 'email',
+      notificationEmail: 'monthly@test.com',
     },
   })
   monthlyCustomerId = c1.id
@@ -76,6 +91,7 @@ beforeAll(async () => {
       statementType: 'monthly', paymentType: 'lump_sum',
       invoiceRequired: true, invoiceType: 'net',
       notificationMethod: 'email',
+      notificationEmail: 'invoice@test.com',
     },
   })
   invoiceCustomerId = c2.id
@@ -94,6 +110,7 @@ beforeAll(async () => {
       tripFeeEnabled: false,
       statementType: 'per_trip', paymentType: 'lump_sum',
       invoiceRequired: false, notificationMethod: 'email',
+      notificationEmail: 'pertrip@test.com',
     },
   })
   perTripCustomerId = c3.id

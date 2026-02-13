@@ -727,6 +727,8 @@ export function useUpdateContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      // 合約與客戶類型聯動：更新合約狀態可能影響客戶類型
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
       message.success('合約更新成功')
     },
     onError: () => {

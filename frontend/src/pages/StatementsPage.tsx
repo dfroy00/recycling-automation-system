@@ -13,6 +13,7 @@ import {
   useInvoiceStatement, useSendStatement, useVoidStatement,
   useCustomers, useTrips,
 } from '../api/hooks'
+import { useAuth } from '../contexts/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import type { Statement, Trip, TripItem } from '../types'
 
@@ -79,6 +80,7 @@ function StatementDetail({ statement }: { statement: Statement }) {
 
 // ==================== 月結管理主頁面 ====================
 export default function StatementsPage() {
+  const { canEdit } = useAuth()
   const { isMobile } = useResponsive()
   const [page, setPage] = useState(1)
   const [yearMonth, setYearMonth] = useState<string | undefined>()
@@ -129,8 +131,9 @@ export default function StatementsPage() {
     setVoidReason('')
   }
 
-  // 操作按鈕
+  // 操作按鈕（僅 canEdit 角色可操作）
   const renderActions = (record: Statement) => {
+    if (!canEdit) return null
     const actions: React.ReactNode[] = []
 
     if (record.status === 'draft') {
@@ -220,12 +223,12 @@ export default function StatementsPage() {
         </Tag>
       ),
     },
-    {
+    ...(canEdit ? [{
       title: '操作',
       key: 'actions',
       width: 200,
       render: (_: unknown, record: Statement) => renderActions(record),
-    },
+    }] : []),
   ]
 
   return (
@@ -233,14 +236,16 @@ export default function StatementsPage() {
       {/* 標題列 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>月結管理</Title>
-        <Button
-          type="primary"
-          icon={<ReloadOutlined />}
-          onClick={() => generateStatements.mutate({ yearMonth })}
-          loading={generateStatements.isPending}
-        >
-          {!isMobile && '產出月結明細'}
-        </Button>
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
+            onClick={() => generateStatements.mutate({ yearMonth })}
+            loading={generateStatements.isPending}
+          >
+            {!isMobile && '產出月結明細'}
+          </Button>
+        )}
       </div>
 
       {/* 篩選列 */}

@@ -30,7 +30,7 @@ beforeAll(async () => {
       username: 'ci_test_user',
       passwordHash,
       name: '合約品項測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id

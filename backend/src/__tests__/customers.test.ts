@@ -27,7 +27,7 @@ beforeAll(async () => {
       username: 'customers_test_user',
       passwordHash,
       name: '客戶測試使用者',
-      role: 'admin',
+      role: 'super_admin',
     },
   })
   testUserId = user.id
@@ -220,13 +220,14 @@ describe('PATCH /api/customers/:id', () => {
   })
 })
 
-describe('DELETE /api/customers/:id', () => {
+describe('PATCH /api/customers/:id/deactivate', () => {
   it('軟刪除客戶（狀態改為 inactive）', async () => {
     const res = await request(app)
-      .delete(`/api/customers/${createdCustomerId}`)
+      .patch(`/api/customers/${createdCustomerId}/deactivate`)
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
+    expect(res.body.message).toBe('已停用')
 
     // 確認狀態
     const check = await request(app)
@@ -235,9 +236,9 @@ describe('DELETE /api/customers/:id', () => {
     expect(check.body.status).toBe('inactive')
   })
 
-  it('刪除不存在的客戶應回傳 404', async () => {
+  it('停用不存在的客戶應回傳 404', async () => {
     const res = await request(app)
-      .delete('/api/customers/999999')
+      .patch('/api/customers/999999/deactivate')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
