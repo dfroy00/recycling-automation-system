@@ -14,7 +14,7 @@
 
 ## Phase 1: 專案初始化與資料庫
 
-### Task 1: 後端專案初始化
+### - [x] Task 1: 後端專案初始化
 
 **Files:**
 - Create: `backend/package.json`
@@ -145,7 +145,7 @@ git commit -m "feat: 初始化後端專案（Express + TypeScript + Jest）"
 
 ---
 
-### Task 2: Prisma Schema — 核心資料表
+### - [x] Task 2: Prisma Schema — 核心資料表
 
 **Files:**
 - Create: `backend/prisma/schema.prisma`
@@ -488,7 +488,7 @@ git commit -m "feat: 建立 Prisma Schema（全部資料表含 Mock DB）"
 
 ---
 
-### Task 3: 種子資料
+### - [x] Task 3: 種子資料
 
 **Files:**
 - Create: `backend/prisma/seed.ts`
@@ -774,7 +774,7 @@ git commit -m "feat: 新增種子資料（使用者、站區、品項、假日�
 
 ## Phase 2: 認證與基礎 CRUD
 
-### Task 4: JWT 認證
+### - [x] Task 4: JWT 認證
 
 **Files:**
 - Create: `backend/src/middleware/auth.ts`
@@ -958,7 +958,7 @@ git commit -m "feat: 實作 JWT 認證（login + me + 中介層 + 測試）"
 
 ---
 
-### Task 5: 站區 CRUD
+### - [x] Task 5: 站區 CRUD
 
 **Files:**
 - Create: `backend/src/routes/sites.ts`
@@ -1054,7 +1054,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 6: 品項 CRUD
+### - [x] Task 6: 品項 CRUD
 
 同 Task 5 模式。
 - Create: `backend/src/routes/items.ts`
@@ -1066,7 +1066,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 7: 使用者 CRUD
+### - [x] Task 7: 使用者 CRUD
 
 同 Task 5 模式。
 - Create: `backend/src/routes/users.ts`
@@ -1077,7 +1077,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 8: 假日 CRUD
+### - [x] Task 8: 假日 CRUD
 
 - Create: `backend/src/routes/holidays.ts`
 - Create: `backend/src/__tests__/holidays.test.ts`
@@ -1087,7 +1087,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 20: 儀表板統計 API
+### - [x] Task 20: 儀表板統計 API
 
 **Files:**
 - Create: `backend/src/routes/dashboard.ts`
@@ -1110,7 +1110,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ## Phase 3: 客戶與合約管理
 
-### Task 9: 客戶 CRUD
+### - [x] Task 9: 客戶 CRUD
 
 **Files:**
 - Create: `backend/src/routes/customers.ts`
@@ -1128,7 +1128,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 10: 客戶附加費用 CRUD
+### - [x] Task 10: 客戶附加費用 CRUD
 
 **Files:**
 - Create: 在 `backend/src/routes/customers.ts` 內新增附加費用子路由
@@ -1149,7 +1149,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 11: 合約 CRUD
+### - [x] Task 11: 合約 CRUD
 
 **Files:**
 - Create: `backend/src/routes/contracts.ts`
@@ -1164,7 +1164,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ---
 
-### Task 12: 合約品項 CRUD
+### - [x] Task 12: 合約品項 CRUD
 
 **Files:**
 - 新增於 `backend/src/routes/contracts.ts`
@@ -1184,7 +1184,7 @@ git commit -m "feat: 實作站區 CRUD API + 測試"
 
 ## Phase 4: Adapter 層（外部系統整合）
 
-### Task 13: Adapter 介面與型別
+### - [x] Task 13: Adapter 介面與型別
 
 **Files:**
 - Create: `backend/src/adapters/types.ts`
@@ -1307,7 +1307,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 ---
 
-### Task 14: Mock POS Adapter
+### - [x] Task 14: Mock POS Adapter
 
 **Files:**
 - Create: `backend/src/adapters/mock/mock-pos.adapter.ts`
@@ -1323,7 +1323,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 ---
 
-### Task 15: Mock Vehicle Adapter
+### - [x] Task 15: Mock Vehicle Adapter
 
 同 Task 14 模式，實作 `MockVehicleAdapter` 讀寫 `mock_vehicle_trips`。
 
@@ -1331,7 +1331,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 ---
 
-### Task 16: Mock 假資料產生器
+### - [x] Task 16: Mock 假資料產生器
 
 **Files:**
 - Create: `backend/src/adapters/mock/mock-data-seeder.ts`
@@ -1347,7 +1347,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 ---
 
-### Task 17: 同步 API 路由
+### - [x] Task 17: 同步 API 路由
 
 **Files:**
 - Create: `backend/src/routes/sync.ts`
@@ -1398,7 +1398,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 ## Phase 5: 車趟管理
 
-### Task 18: 車趟 CRUD
+### - [x] Task 18: 車趟 CRUD
 
 **Files:**
 - Create: `backend/src/routes/trips.ts`
@@ -1413,7 +1413,7 @@ git commit -m "feat: 定義 Adapter 介面（IPosAdapter + IVehicleAdapter + 型
 
 ---
 
-### Task 19: 車趟品項（快照邏輯）
+### - [x] Task 19: 車趟品項（快照邏輯）
 
 **Files:**
 - 新增於 `backend/src/routes/trips.ts`
@@ -1477,7 +1477,7 @@ async function createTripItem(tripId: number, itemId: number, quantity: number, 
 
 ## Phase 6: 計費引擎與月結
 
-### Task 21: 假日服務（工作日計算）
+### - [x] Task 21: 假日服務（工作日計算）
 
 **Files:**
 - Create: `backend/src/services/holiday.service.ts`
@@ -1505,7 +1505,7 @@ async function isHoliday(date: Date): Promise<boolean> {
 
 ---
 
-### Task 22: 計費引擎（核心計算）
+### - [x] Task 22: 計費引擎（核心計算）
 
 **Files:**
 - Create: `backend/src/services/billing.service.ts`
@@ -1609,7 +1609,7 @@ describe('BillingService', () => {
 
 ---
 
-### Task 23: 月結明細產出
+### - [x] Task 23: 月結明細產出
 
 **Files:**
 - Create: `backend/src/services/statement.service.ts`
@@ -1652,7 +1652,7 @@ async function generateCustomerStatement(customerId: number, yearMonth: string):
 
 ---
 
-### Task 24: 按趟明細產出
+### - [x] Task 24: 按趟明細產出
 
 在 `statement.service.ts` 新增：
 
@@ -1667,7 +1667,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 
 ---
 
-### Task 25: 月結 API + 審核流程
+### - [x] Task 25: 月結 API + 審核流程
 
 **Files:**
 - Create: `backend/src/routes/statements.ts`
@@ -1694,7 +1694,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 
 ## Phase 7: 報表與通知
 
-### Task 26: PDF 報表產出
+### - [x] Task 26: PDF 報表產出
 
 **Files:**
 - Create: `backend/src/routes/reports.ts`
@@ -1716,7 +1716,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 
 ---
 
-### Task 27: Excel 站區彙總報表
+### - [x] Task 27: Excel 站區彙總報表
 
 **Files:**
 - Create: `backend/src/services/excel-report.service.ts`
@@ -1731,7 +1731,7 @@ async function generateTripStatement(tripId: number): Promise<Statement>
 
 ---
 
-### Task 28: Email 通知服務
+### - [x] Task 28: Email 通知服務
 
 **Files:**
 - Create: `backend/src/services/notification.service.ts`
@@ -1747,7 +1747,7 @@ LINE 介面預留但不實作。
 
 ---
 
-### Task 29: 排程服務
+### - [x] Task 29: 排程服務
 
 **Files:**
 - Create: `backend/src/services/scheduler.service.ts`
@@ -1771,7 +1771,7 @@ API：
 
 ---
 
-### Task 29.5: API 分頁與效能防護
+### - [x] Task 29.5: API 分頁與效能防護
 
 **Files:**
 - Create: `backend/src/middleware/pagination.ts`
@@ -1815,7 +1815,8 @@ export function paginationResponse(data: any[], total: number, page: number, pag
 
 ---
 
-### Task 29.6: 資料備份設定
+### - [~] Task 29.6: 資料備份設定
+  > ⚠️ 備註：有手動備份腳本，缺 Docker 自動排程備份容器
 
 **Files:**
 - Modify: `docker-compose.prod.yml`
@@ -1850,7 +1851,7 @@ echo "還原完成: $1"
 
 ## Phase 8: 前端
 
-### Task 30: 前端專案初始化
+### - [x] Task 30: 前端專案初始化
 
 ```bash
 cd frontend
@@ -1872,7 +1873,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 31: 登入頁 + 認證流程
+### - [x] Task 31: 登入頁 + 認證流程
 
 - `src/pages/LoginPage.tsx`
 - localStorage 存 token
@@ -1883,7 +1884,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 32: 儀表板
+### - [x] Task 32: 儀表板
 
 - `src/pages/DashboardPage.tsx`
 - 依設計文件第 10 章 UI 佈局
@@ -1895,7 +1896,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 33a: 基礎資料頁面 — 站區與品項管理
+### - [x] Task 33a: 基礎資料頁面 — 站區與品項管理
 
 - `src/pages/SitesPage.tsx` — 站區 CRUD（Table + Modal）
 - `src/pages/ItemsPage.tsx` — 品項 CRUD（Table + Modal），支援分類篩選
@@ -1906,7 +1907,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 33b: 基礎資料頁面 — 使用者與假日管理
+### - [x] Task 33b: 基礎資料頁面 — 使用者與假日管理
 
 - `src/pages/UsersPage.tsx` — 使用者 CRUD（密碼欄位僅新增時必填）
 - `src/pages/HolidaysPage.tsx` — 假日管理（CRUD + 批次匯入功能）
@@ -1915,7 +1916,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 34: 客戶管理
+### - [x] Task 34: 客戶管理
 
 - `src/pages/CustomersPage.tsx` — 客戶列表 + 篩選
 - 客戶編輯 Modal/Drawer（含所有設定欄位）
@@ -1925,7 +1926,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 35: 合約管理
+### - [x] Task 35: 合約管理
 
 - `src/pages/ContractsPage.tsx`
 - 合約列表 + CRUD
@@ -1935,7 +1936,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 36: 車趟管理
+### - [x] Task 36: 車趟管理
 
 - `src/pages/TripsPage.tsx` — 車趟列表 + 品項明細展開
 
@@ -1943,7 +1944,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 36.5: 外部系統同步頁面
+### - [x] Task 36.5: 外部系統同步頁面
 
 - `src/pages/SyncPage.tsx`
 - 手動觸發 POS/車機同步按鈕
@@ -1955,7 +1956,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 37a: 月結管理 — 列表與手動觸發
+### - [x] Task 37a: 月結管理 — 列表與手動觸發
 
 - `src/pages/StatementsPage.tsx`
 - 依設計文件 UI：Tab 切換狀態（待審核/已審核/已開票/已寄送/退回/已作廢）
@@ -1968,7 +1969,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 37b: 月結管理 — 審核流程與明細展開
+### - [x] Task 37b: 月結管理 — 審核流程與明細展開
 
 - 審核詳情展開（品項明細 + 車趟費 + 附加費用 + 彙總金額）
   - 桌面：expandedRowRender 行內展開
@@ -1983,7 +1984,7 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 38: 報表 + 排程管理
+### - [x] Task 38: 報表 + 排程管理
 
 - `src/pages/ReportsPage.tsx` — PDF 下載 + Excel 下載
 - `src/pages/SchedulePage.tsx` — 排程狀態 + 手動觸發 + 寄送失敗紀錄顯示（篩選 send_retry_count >= 3 的 statements，提供手動重新寄送按鈕）
@@ -1994,7 +1995,8 @@ npm install -D @types/react @types/react-dom
 
 ## Phase 9: 整合驗證
 
-### Task 39: 端對端驗證
+### - [~] Task 39: 端對端驗證
+  > ⚠️ 備註：有 API 測試，無系統性 E2E 測試
 
 依設計文件第 12 章驗收標準，逐項驗證：
 
@@ -2016,7 +2018,8 @@ npm install -D @types/react @types/react-dom
 
 ---
 
-### Task 40: 最終清理
+### - [~] Task 40: 最終清理
+  > ⚠️ 備註：缺 .env.example 範本檔
 
 - 確認所有測試通過：`cd backend && npm test`
 - 確認前後端可正常啟動和互動

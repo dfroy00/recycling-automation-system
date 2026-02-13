@@ -1856,25 +1856,31 @@ git commit -m "test: 全面測試權限系統和客戶詳情頁"
 
 ## 任務摘要
 
-| Phase | Task | 內容 | 預估 |
-|-------|------|------|------|
-| 1 | 1 | Prisma schema + migration + seed | 中 |
-| 1 | 2 | authorize middleware + 測試 | 小 |
-| 1 | 3 | siteScope middleware + 測試 | 小 |
-| 1 | 4 | 更新 auth middleware + JWT | 小 |
-| 1 | 5 | 各路由套用權限中介層 | 大 |
-| 1 | 6 | 使用者管理 API | 小 |
-| 2 | 7 | AuthContext 擴充 | 小 |
-| 2 | 8 | AppLayout 選單權限 | 小 |
-| 2 | 9 | 使用者管理頁面 | 小 |
-| 3 | 10 | CustomerDetailPage 骨架 | 小 |
-| 3 | 11 | 基本資料 Tab | 中 |
-| 3 | 12 | 合約管理 Tab | 中 |
-| 3 | 13 | 附加費用 Tab | 小 |
-| 3 | 14 | 車趟紀錄 Tab | 小 |
-| 3 | 15 | 結算明細 Tab | 小 |
-| 3 | 16 | CustomersPage 重構 | 中 |
-| 3 | 17 | 新增客戶功能 | 小 |
-| 3 | 18 | 合約總覽頁更新 | 小 |
-| 3 | 19 | 各頁面權限控制收尾 | 中 |
-| 3 | 20 | 全面測試 | 中 |
+### Phase 1：權限系統 — 後端
+- [x] Task 1：Prisma schema + migration + seed（中）
+- [x] Task 2：authorize middleware + 測試（小）
+- [x] Task 3：siteScope middleware + 測試（小）
+- [x] Task 4：更新 auth middleware + JWT（小）
+- [x] Task 5：各路由套用權限中介層（大）
+- [x] Task 6：使用者管理 API（小）
+
+### Phase 2：權限系統 — 前端
+- [x] Task 7：AuthContext 擴充（小）
+- [~] Task 8：AppLayout 選單權限（小）
+  > ⚠️ 備註：選單過濾已完成，但 Header 缺少角色標籤 Tag 顯示
+- [~] Task 9：使用者管理頁面（小）
+  > ⚠️ 備註：UsersPage 表單角色下拉仍只有 admin，未改為三角色（super_admin / site_manager / site_staff）+ 站區欄位
+
+### Phase 3：客戶詳情頁 — 前端
+- [x] Task 10：CustomerDetailPage 骨架（小）
+- [x] Task 11：基本資料 Tab（中）
+- [x] Task 12：合約管理 Tab（中）
+- [x] Task 13：附加費用 Tab（小）
+- [x] Task 14：車趟紀錄 Tab（小）
+- [x] Task 15：結算明細 Tab（小）
+- [x] Task 16：CustomersPage 重構（中）
+- [x] Task 17：新增客戶功能（小）
+- [~] Task 18：合約總覽頁更新（小）
+  > ⚠️ 備註：合約總覽頁已有客戶連結，但缺少 useAuth 權限控制操作按鈕
+- [ ] Task 19：各頁面權限控制收尾（中）
+- [ ] Task 20：全面測試（中）

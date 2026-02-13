@@ -36,6 +36,26 @@
 | Task 14 | 跑全部後端測試 | 已完成 |
 | Task 15 | 前端編譯檢查 + 開發伺服器驗證 | 已完成 |
 
+### 後續任務（Phase 7-11, Task 16-28）
+
+- [ ] **Task 16:** 後端列表查詢預設過濾 inactive 項目
+- [ ] **Task 17:** 前端刪除 UX 改為「停用/啟用」
+- [ ] **Task 18:** 新增 Category Prisma Model + Migration
+- [ ] **Task 19:** 新增 Category 後端 CRUD API
+- [ ] **Task 20:** 前端 — Category hooks + 品項表單改為下拉
+- [ ] **Task 21:** 品項管理頁面內嵌分類管理
+- [ ] **Task 22:** Playwright 瀏覽器測試驗證
+- [~] **Task 23:** 修正三個管理頁面的表格操作欄溢出
+  > ⚠️ 備註：只修了 BusinessEntitiesPage，SitesPage 和 ItemsPage 未修
+- [~] **Task 24:** 後端 — 抽取客戶類型同步輔助函數
+  > ⚠️ 備註：POST/DELETE 有內聯邏輯但未抽取獨立函數
+- [x] **Task 25:** 後端 — POST /api/contracts 建立合約後同步客戶類型
+- [~] **Task 26:** 後端 — PATCH / DELETE 合約時同步客戶類型
+  > ⚠️ 備註：DELETE 已實作，PATCH 路由缺少同步邏輯
+- [~] **Task 27:** 前端 — 合約 hooks 同時 invalidate customers cache
+  > ⚠️ 備註：useCreateContract/useDeleteContract 已新增 invalidate，useUpdateContract 未新增
+- [ ] **Task 28:** Playwright 整合驗證 — 合約與客戶類型同步
+
 ### Playwright 瀏覽器測試發現的額外問題（2026-02-12 新增）
 
 | 問題 | 修復檔案 | 狀態 |
