@@ -3,7 +3,6 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Tabs, Button, Space, Typography, Spin, Result } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { useCustomer } from '../api/hooks'
-import { useAuth } from '../contexts/AuthContext'
 import CustomerInfoTab from './CustomerInfoTab'
 import CustomerContractsTab from './CustomerContractsTab'
 import CustomerFeesTab from './CustomerFeesTab'
@@ -21,8 +20,6 @@ export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const auth = useAuth()
-  const canEdit = (auth as any).canEdit ?? true // fallback，若 AuthContext 尚未擴充
 
   const isNew = id === 'new'
   const customerId = isNew ? null : Number(id)

@@ -12,6 +12,7 @@ import ItemsPage from './pages/ItemsPage'
 import UsersPage from './pages/UsersPage'
 import HolidaysPage from './pages/HolidaysPage'
 import CustomersPage from './pages/CustomersPage'
+import CustomerDetailPage from './pages/CustomerDetailPage'
 import ContractsPage from './pages/ContractsPage'
 import TripsPage from './pages/TripsPage'
 import SyncPage from './pages/SyncPage'
@@ -52,6 +53,7 @@ export default function App() {
                 <Route path="/sites" element={<SitesPage />} />
                 <Route path="/items" element={<ItemsPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
+                <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/contracts" element={<ContractsPage />} />
                 <Route path="/trips" element={<TripsPage />} />
                 <Route path="/sync" element={<SyncPage />} />

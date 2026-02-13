@@ -9,6 +9,7 @@ interface User {
   name: string
   email: string | null
   role: string
+  siteId: number | null
 }
 
 // 認證上下文型別
@@ -17,6 +18,11 @@ interface AuthContextType {
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
+  isSuperAdmin: boolean
+  isSiteManager: boolean
+  isSiteStaff: boolean
+  canEdit: boolean            // super_admin 或 site_manager
+  canManageSystem: boolean    // 僅 super_admin
   login: (username: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -73,6 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     message.success('已登出')
   }
 
+  // 角色判斷 helper
+  const isSuperAdmin = user?.role === 'super_admin'
+  const isSiteManager = user?.role === 'site_manager'
+  const isSiteStaff = user?.role === 'site_staff'
+  const canEdit = isSuperAdmin || isSiteManager
+  const canManageSystem = isSuperAdmin
+
   return (
     <AuthContext.Provider
       value={{
@@ -80,6 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isAuthenticated: !!token && !!user,
         isLoading,
+        isSuperAdmin,
+        isSiteManager,
+        isSiteStaff,
+        canEdit,
+        canManageSystem,
         login,
         logout,
       }}

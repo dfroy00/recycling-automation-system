@@ -7,6 +7,7 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { Link } from 'react-router-dom'
 import {
   useContracts, useCreateContract, useUpdateContract, useDeleteContract,
   useContractItems, useCreateContractItem, useUpdateContractItem, useDeleteContractItem,
@@ -283,7 +284,10 @@ export default function ContractsPage() {
       title: '客戶',
       key: 'customer',
       responsive: ['md' as const],
-      render: (_: unknown, record: Contract) => record.customer?.name ?? '-',
+      render: (_: unknown, record: Contract) =>
+        record.customer
+          ? <Link to={`/customers/${record.customerId}?tab=contracts`}>{record.customer.name}</Link>
+          : '-',
     },
     {
       title: '起始日',

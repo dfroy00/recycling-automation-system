@@ -16,8 +16,7 @@ interface Props {
  * 支援新增（customer=null）和編輯模式
  */
 export default function CustomerInfoTab({ customer, isNew, onCreated }: Props) {
-  const auth = useAuth()
-  const canEdit = (auth as any).canEdit ?? true // fallback
+  const { canEdit } = useAuth()
   const [form] = Form.useForm()
   const updateCustomer = useUpdateCustomer()
   const createCustomer = useCreateCustomer()

@@ -212,8 +212,7 @@ interface Props {
  * 從 ContractsPage 提取，customerId 自動帶入
  */
 export default function CustomerContractsTab({ customerId }: Props) {
-  const auth = useAuth()
-  const canEdit = (auth as any).canEdit ?? true // fallback
+  const { canEdit } = useAuth()
   const { isMobile } = useResponsive()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)

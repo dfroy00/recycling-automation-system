@@ -23,61 +23,63 @@ import { useResponsive } from '../hooks/useResponsive'
 
 const { Header, Sider, Content } = Layout
 
-// 側邊選單項目
-const menuItems = [
-  {
-    key: '/dashboard',
-    icon: <DashboardOutlined />,
-    label: '儀表板',
-  },
-  {
-    key: 'basic-data',
-    icon: <AppstoreOutlined />,
-    label: '基礎資料',
-    children: [
-      { key: '/sites', icon: <EnvironmentOutlined />, label: '站區管理' },
-      { key: '/items', icon: <AppstoreOutlined />, label: '品項管理' },
-      { key: '/customers', icon: <TeamOutlined />, label: '客戶管理' },
-      { key: '/business-entities', icon: <BankOutlined />, label: '行號管理' },
-      { key: '/contracts', icon: <FileTextOutlined />, label: '合約管理' },
-    ],
-  },
-  {
-    key: 'operations',
-    icon: <CarOutlined />,
-    label: '營運管理',
-    children: [
-      { key: '/trips', icon: <CarOutlined />, label: '車趟管理' },
-      { key: '/sync', icon: <SyncOutlined />, label: '外部同步' },
-    ],
-  },
-  {
-    key: 'accounting',
-    icon: <AccountBookOutlined />,
-    label: '帳務管理',
-    children: [
-      { key: '/statements', icon: <AccountBookOutlined />, label: '月結管理' },
-      { key: '/reports', icon: <BarChartOutlined />, label: '報表' },
-    ],
-  },
-  {
-    key: 'system',
-    icon: <UserOutlined />,
-    label: '系統',
-    children: [
-      { key: '/users', icon: <UserOutlined />, label: '使用者' },
-      { key: '/holidays', icon: <CalendarOutlined />, label: '假日設定' },
-      { key: '/schedule', icon: <ClockCircleOutlined />, label: '排程管理' },
-    ],
-  },
-]
+// 依角色產生側邊選單項目
+function getMenuItems(canManageSystem: boolean) {
+  return [
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: '儀表板',
+    },
+    {
+      key: 'basic-data',
+      icon: <AppstoreOutlined />,
+      label: '基礎資料',
+      children: [
+        ...(canManageSystem ? [{ key: '/sites', icon: <EnvironmentOutlined />, label: '站區管理' }] : []),
+        ...(canManageSystem ? [{ key: '/items', icon: <AppstoreOutlined />, label: '品項管理' }] : []),
+        { key: '/customers', icon: <TeamOutlined />, label: '客戶管理' },
+        ...(canManageSystem ? [{ key: '/business-entities', icon: <BankOutlined />, label: '行號管理' }] : []),
+        ...(canManageSystem ? [{ key: '/contracts', icon: <FileTextOutlined />, label: '合約管理' }] : []),
+      ],
+    },
+    {
+      key: 'operations',
+      icon: <CarOutlined />,
+      label: '營運管理',
+      children: [
+        { key: '/trips', icon: <CarOutlined />, label: '車趟管理' },
+        ...(canManageSystem ? [{ key: '/sync', icon: <SyncOutlined />, label: '外部同步' }] : []),
+      ],
+    },
+    {
+      key: 'accounting',
+      icon: <AccountBookOutlined />,
+      label: '帳務管理',
+      children: [
+        { key: '/statements', icon: <AccountBookOutlined />, label: '月結管理' },
+        { key: '/reports', icon: <BarChartOutlined />, label: '報表' },
+      ],
+    },
+    ...(canManageSystem ? [{
+      key: 'system',
+      icon: <UserOutlined />,
+      label: '系統',
+      children: [
+        { key: '/users', icon: <UserOutlined />, label: '使用者' },
+        { key: '/holidays', icon: <CalendarOutlined />, label: '假日設定' },
+        { key: '/schedule', icon: <ClockCircleOutlined />, label: '排程管理' },
+      ],
+    }] : []),
+  ]
+}
 
 // 取得目前路徑對應的展開 SubMenu keys
-function getOpenKeys(pathname: string): string[] {
-  for (const item of menuItems) {
+function getOpenKeys(pathname: string, items: ReturnType<typeof getMenuItems>): string[] {
+  for (const item of items) {
     if ('children' in item && item.children) {
       for (const child of item.children) {
-        if (child.key === pathname) {
+        if (child.key === pathname || pathname.startsWith(child.key + '/')) {
           return [item.key]
         }
       }
@@ -88,13 +90,14 @@ function getOpenKeys(pathname: string): string[] {
 
 export default function AppLayout() {
   const { isMobile, isDesktop } = useResponsive()
-  const { user, logout } = useAuth()
+  const { user, logout, canManageSystem } = useAuth()
+  const menuItems = getMenuItems(canManageSystem)
   const navigate = useNavigate()
   const location = useLocation()
   const { token: themeToken } = theme.useToken()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeys(location.pathname))
+  const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeys(location.pathname, menuItems))
 
   // 選單點擊導航
   const handleMenuClick = ({ key }: { key: string }) => {

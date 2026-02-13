@@ -15,8 +15,7 @@ interface Props {
  * 從 CustomersPage Modal 的附加費用區塊獨立出來
  */
 export default function CustomerFeesTab({ customerId }: Props) {
-  const auth = useAuth()
-  const canEdit = (auth as any).canEdit ?? true // fallback
+  const { canEdit } = useAuth()
   const { isMobile } = useResponsive()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingFee, setEditingFee] = useState<CustomerFee | null>(null)
