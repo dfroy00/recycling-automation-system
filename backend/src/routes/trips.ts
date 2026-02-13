@@ -2,15 +2,23 @@
 import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
+import { authorize } from '../middleware/authorize'
+import { siteScope, ScopedRequest } from '../middleware/site-scope'
 
 const router = Router()
 
-// GET /api/trips（支援分頁）
-router.get('/', async (req: Request, res: Response) => {
+// GET /api/trips（支援分頁）— 所有角色可讀+siteScope
+router.get('/', siteScope(), async (req: Request, res: Response) => {
+  const scopedReq = req as ScopedRequest
   const { customerId, siteId, dateFrom, dateTo } = req.query
   const where: any = {}
   if (customerId) where.customerId = Number(customerId)
-  if (siteId) where.siteId = Number(siteId)
+  // 站區範圍過濾（scopedSiteId 優先）
+  if (scopedReq.scopedSiteId) {
+    where.siteId = scopedReq.scopedSiteId
+  } else if (siteId) {
+    where.siteId = Number(siteId)
+  }
   if (dateFrom || dateTo) {
     where.tripDate = {}
     if (dateFrom) where.tripDate.gte = new Date(dateFrom as string)
@@ -43,8 +51,8 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(paginationResponse(trips, total, page, pageSize))
 })
 
-// GET /api/trips/:id
-router.get('/:id', async (req: Request, res: Response) => {
+// GET /api/trips/:id — 所有角色可讀
+router.get('/:id', siteScope(), async (req: Request, res: Response) => {
   const trip = await prisma.trip.findUnique({
     where: { id: Number(req.params.id) },
     include: {
@@ -62,8 +70,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(trip)
 })
 
-// POST /api/trips
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/trips — 僅 super_admin 和 site_manager
+router.post('/', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { customerId, siteId, tripDate, tripTime, driver, vehiclePlate, notes } = req.body
 
   if (!customerId || !siteId || !tripDate) {
@@ -98,8 +106,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/trips/:id
-router.patch('/:id', async (req: Request, res: Response) => {
+// PATCH /api/trips/:id — 僅 super_admin 和 site_manager
+router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { tripDate, tripTime, driver, vehiclePlate, notes } = req.body
   const data: any = {}
   if (tripDate) data.tripDate = new Date(tripDate)
@@ -127,8 +135,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/trips/:id
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/trips/:id — 僅 super_admin 和 site_manager
+router.delete('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     // 先刪除車趟品項，再刪除車趟
     await prisma.tripItem.deleteMany({ where: { tripId: Number(req.params.id) } })
@@ -145,8 +153,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 // ==================== 車趟品項（快照邏輯） ====================
 
-// GET /api/trips/:id/items
-router.get('/:id/items', async (req: Request, res: Response) => {
+// GET /api/trips/:id/items — 所有角色可讀
+router.get('/:id/items', siteScope(), async (req: Request, res: Response) => {
   const tripId = Number(req.params.id)
   const trip = await prisma.trip.findUnique({ where: { id: tripId } })
   if (!trip) {
@@ -162,8 +170,8 @@ router.get('/:id/items', async (req: Request, res: Response) => {
   res.json(items)
 })
 
-// POST /api/trips/:id/items
-router.post('/:id/items', async (req: Request, res: Response) => {
+// POST /api/trips/:id/items — 僅 super_admin 和 site_manager
+router.post('/:id/items', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const tripId = Number(req.params.id)
   const { itemId, quantity, unitPrice: manualPrice, billingDirection: manualDirection } = req.body
 
@@ -246,8 +254,8 @@ router.post('/:id/items', async (req: Request, res: Response) => {
   res.status(201).json(tripItem)
 })
 
-// PATCH /api/trips/:tid/items/:iid
-router.patch('/:tid/items/:iid', async (req: Request, res: Response) => {
+// PATCH /api/trips/:tid/items/:iid — 僅 super_admin 和 site_manager
+router.patch('/:tid/items/:iid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { quantity, unitPrice, billingDirection } = req.body
 
   if (billingDirection && !['receivable', 'payable', 'free'].includes(billingDirection)) {
@@ -288,8 +296,8 @@ router.patch('/:tid/items/:iid', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/trips/:tid/items/:iid
-router.delete('/:tid/items/:iid', async (req: Request, res: Response) => {
+// DELETE /api/trips/:tid/items/:iid — 僅 super_admin 和 site_manager
+router.delete('/:tid/items/:iid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     await prisma.tripItem.delete({ where: { id: Number(req.params.iid) } })
     res.json({ message: '已刪除' })

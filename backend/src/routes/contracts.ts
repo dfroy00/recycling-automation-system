@@ -2,13 +2,15 @@
 import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
+import { authorize } from '../middleware/authorize'
+import { siteScope } from '../middleware/site-scope'
 
 const router = Router()
 
 // ==================== 合約 CRUD ====================
 
-// GET /api/contracts — 列表（支援分頁、篩選）
-router.get('/', async (req: Request, res: Response) => {
+// GET /api/contracts — 列表（支援分頁、篩選）— 所有角色可讀+siteScope
+router.get('/', siteScope(), async (req: Request, res: Response) => {
   const { customerId, status } = req.query
   const where: any = {}
   if (customerId) where.customerId = Number(customerId)
@@ -39,8 +41,8 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(paginationResponse(contracts, total, page, pageSize))
 })
 
-// GET /api/contracts/:id — 詳情
-router.get('/:id', async (req: Request, res: Response) => {
+// GET /api/contracts/:id — 詳情 — 所有角色可讀
+router.get('/:id', siteScope(), async (req: Request, res: Response) => {
   const contract = await prisma.contract.findUnique({
     where: { id: Number(req.params.id) },
     include: {
@@ -57,8 +59,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(contract)
 })
 
-// POST /api/contracts — 新增
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/contracts — 新增 — 僅 super_admin 和 site_manager
+router.post('/', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { customerId, contractNumber, startDate, endDate, status: contractStatus, notes } = req.body
 
   if (!customerId || !contractNumber || !startDate || !endDate) {
@@ -99,8 +101,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/contracts/:id — 更新
-router.patch('/:id', async (req: Request, res: Response) => {
+// PATCH /api/contracts/:id — 更新 — 僅 super_admin 和 site_manager
+router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { contractNumber, startDate, endDate, status: contractStatus, notes } = req.body
   const data: any = {}
   if (contractNumber) data.contractNumber = contractNumber
@@ -131,8 +133,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/contracts/:id — 刪除（設為 terminated）
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/contracts/:id — 刪除（設為 terminated）— 僅 super_admin 和 site_manager
+router.delete('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     const contract = await prisma.contract.update({
       where: { id: Number(req.params.id) },
@@ -168,8 +170,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 // ==================== 合約品項 CRUD ====================
 
-// GET /api/contracts/:id/items — 合約品項列表
-router.get('/:id/items', async (req: Request, res: Response) => {
+// GET /api/contracts/:id/items — 合約品項列表 — 所有角色可讀
+router.get('/:id/items', siteScope(), async (req: Request, res: Response) => {
   const contractId = Number(req.params.id)
   const contract = await prisma.contract.findUnique({ where: { id: contractId } })
   if (!contract) {
@@ -185,8 +187,8 @@ router.get('/:id/items', async (req: Request, res: Response) => {
   res.json(items)
 })
 
-// POST /api/contracts/:id/items — 新增合約品項
-router.post('/:id/items', async (req: Request, res: Response) => {
+// POST /api/contracts/:id/items — 新增合約品項 — 僅 super_admin 和 site_manager
+router.post('/:id/items', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const contractId = Number(req.params.id)
   const { itemId, unitPrice, billingDirection } = req.body
 
@@ -215,8 +217,8 @@ router.post('/:id/items', async (req: Request, res: Response) => {
   res.status(201).json(contractItem)
 })
 
-// PATCH /api/contracts/:cid/items/:iid — 更新合約品項
-router.patch('/:cid/items/:iid', async (req: Request, res: Response) => {
+// PATCH /api/contracts/:cid/items/:iid — 更新合約品項 — 僅 super_admin 和 site_manager
+router.patch('/:cid/items/:iid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { unitPrice, billingDirection } = req.body
 
   // 驗證 billingDirection（若有提供）
@@ -244,8 +246,8 @@ router.patch('/:cid/items/:iid', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/contracts/:cid/items/:iid — 刪除合約品項
-router.delete('/:cid/items/:iid', async (req: Request, res: Response) => {
+// DELETE /api/contracts/:cid/items/:iid — 刪除合約品項 — 僅 super_admin 和 site_manager
+router.delete('/:cid/items/:iid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     await prisma.contractItem.delete({ where: { id: Number(req.params.iid) } })
     res.json({ message: '已刪除' })

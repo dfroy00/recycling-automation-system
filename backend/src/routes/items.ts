@@ -2,6 +2,7 @@
 import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
+import { authorize } from '../middleware/authorize'
 
 const router = Router()
 
@@ -37,8 +38,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(item)
 })
 
-// POST /api/items — 新增
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/items — 新增 — 僅 super_admin
+router.post('/', authorize('super_admin'), async (req: Request, res: Response) => {
   const { name, category, unit } = req.body
   if (!name || !unit) {
     res.status(400).json({ error: '品項名稱和計量單位為必填' })
@@ -57,8 +58,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/items/:id — 更新
-router.patch('/:id', async (req: Request, res: Response) => {
+// PATCH /api/items/:id — 更新 — 僅 super_admin
+router.patch('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   const { name, category, unit, status } = req.body
   try {
     const item = await prisma.item.update({
@@ -84,8 +85,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/items/:id — 刪除（軟刪除）
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/items/:id — 刪除（軟刪除）— 僅 super_admin
+router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
     await prisma.item.update({
       where: { id: Number(req.params.id) },

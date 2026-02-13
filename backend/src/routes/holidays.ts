@@ -1,6 +1,7 @@
 // backend/src/routes/holidays.ts
 import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
+import { authorize } from '../middleware/authorize'
 
 const router = Router()
 
@@ -17,8 +18,8 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(holidays)
 })
 
-// POST /api/holidays — 新增單筆
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/holidays — 新增單筆 — 僅 super_admin
+router.post('/', authorize('super_admin'), async (req: Request, res: Response) => {
   const { date, name, year } = req.body
   if (!date || !name || !year) {
     res.status(400).json({ error: '日期、名稱和年份為必填' })
@@ -39,8 +40,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/holidays/import — 批次匯入
-router.post('/import', async (req: Request, res: Response) => {
+// POST /api/holidays/import — 批次匯入 — 僅 super_admin
+router.post('/import', authorize('super_admin'), async (req: Request, res: Response) => {
   const { holidays } = req.body
   if (!Array.isArray(holidays) || holidays.length === 0) {
     res.status(400).json({ error: '請提供假日陣列' })
@@ -70,8 +71,8 @@ router.post('/import', async (req: Request, res: Response) => {
   res.json({ message: `匯入完成：${created} 筆成功，${skipped} 筆跳過` })
 })
 
-// DELETE /api/holidays/:id — 刪除
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/holidays/:id — 刪除 — 僅 super_admin
+router.delete('/:id', authorize('super_admin'), async (req: Request, res: Response) => {
   try {
     await prisma.holiday.delete({ where: { id: Number(req.params.id) } })
     res.json({ message: '已刪除' })

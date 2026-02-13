@@ -2,14 +2,22 @@
 import { Router, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
+import { authorize } from '../middleware/authorize'
+import { siteScope, ScopedRequest } from '../middleware/site-scope'
 
 const router = Router()
 
-// GET /api/customers（支援分頁）
-router.get('/', async (req: Request, res: Response) => {
+// GET /api/customers（支援分頁）— 所有角色可讀，siteScope 過濾
+router.get('/', siteScope(), async (req: Request, res: Response) => {
+  const scopedReq = req as ScopedRequest
   const { siteId, type, status } = req.query
   const where: any = {}
-  if (siteId) where.siteId = Number(siteId)
+  // 站區範圍過濾（scopedSiteId 優先）
+  if (scopedReq.scopedSiteId) {
+    where.siteId = scopedReq.scopedSiteId
+  } else if (siteId) {
+    where.siteId = Number(siteId)
+  }
   if (type) where.type = type as string
   if (status) where.status = status as string
 
@@ -38,8 +46,8 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(paginationResponse(customers, total, page, pageSize))
 })
 
-// GET /api/customers/:id
-router.get('/:id', async (req: Request, res: Response) => {
+// GET /api/customers/:id — 所有角色可讀，siteScope 過濾
+router.get('/:id', siteScope(), async (req: Request, res: Response) => {
   const customer = await prisma.customer.findUnique({
     where: { id: Number(req.params.id) },
     include: {
@@ -54,8 +62,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(customer)
 })
 
-// POST /api/customers
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/customers — 僅 super_admin 和 site_manager
+router.post('/', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const data = req.body
 
   if (!data.siteId || !data.name || !data.type) {
@@ -121,8 +129,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/customers/:id
-router.patch('/:id', async (req: Request, res: Response) => {
+// PATCH /api/customers/:id — 僅 super_admin 和 site_manager
+router.patch('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const data = req.body
 
   if (data.type && !['contracted', 'temporary'].includes(data.type)) {
@@ -195,8 +203,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/customers/:id
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/customers/:id — 僅 super_admin 和 site_manager
+router.delete('/:id', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     await prisma.customer.update({
       where: { id: Number(req.params.id) },
@@ -214,8 +222,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 // ==================== 客戶附加費用子路由 ====================
 
-// GET /api/customers/:id/fees
-router.get('/:id/fees', async (req: Request, res: Response) => {
+// GET /api/customers/:id/fees — 所有角色可讀
+router.get('/:id/fees', siteScope(), async (req: Request, res: Response) => {
   const fees = await prisma.customerFee.findMany({
     where: { customerId: Number(req.params.id) },
     orderBy: { id: 'asc' },
@@ -223,8 +231,8 @@ router.get('/:id/fees', async (req: Request, res: Response) => {
   res.json(fees)
 })
 
-// POST /api/customers/:id/fees
-router.post('/:id/fees', async (req: Request, res: Response) => {
+// POST /api/customers/:id/fees — 僅 super_admin 和 site_manager
+router.post('/:id/fees', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { name, amount, billingDirection, frequency } = req.body
   const customerId = Number(req.params.id)
 
@@ -259,8 +267,8 @@ router.post('/:id/fees', async (req: Request, res: Response) => {
   res.status(201).json(fee)
 })
 
-// PATCH /api/customers/:cid/fees/:fid
-router.patch('/:cid/fees/:fid', async (req: Request, res: Response) => {
+// PATCH /api/customers/:cid/fees/:fid — 僅 super_admin 和 site_manager
+router.patch('/:cid/fees/:fid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { name, amount, billingDirection, frequency, status } = req.body
 
   if (billingDirection && !['receivable', 'payable'].includes(billingDirection)) {
@@ -305,8 +313,8 @@ router.patch('/:cid/fees/:fid', async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/customers/:cid/fees/:fid
-router.delete('/:cid/fees/:fid', async (req: Request, res: Response) => {
+// DELETE /api/customers/:cid/fees/:fid — 僅 super_admin 和 site_manager
+router.delete('/:cid/fees/:fid', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   try {
     await prisma.customerFee.update({
       where: { id: Number(req.params.fid) },

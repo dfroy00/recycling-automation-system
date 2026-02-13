@@ -3,8 +3,15 @@ import { Router, Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import prisma from '../lib/prisma'
 import { validatePassword } from '../middleware/validate-password'
+import { authorize } from '../middleware/authorize'
 
 const router = Router()
+
+// 全部路由僅 super_admin 可存取
+router.use(authorize('super_admin'))
+
+// 有效的角色值
+const VALID_ROLES = ['super_admin', 'site_manager', 'site_staff']
 
 // 排除 passwordHash 的 select
 const userSelect = {
@@ -13,9 +20,11 @@ const userSelect = {
   name: true,
   email: true,
   role: true,
+  siteId: true,
   status: true,
   createdAt: true,
   updatedAt: true,
+  site: { select: { id: true, name: true } },
 }
 
 // GET /api/users — 列表
@@ -42,7 +51,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // POST /api/users — 新增
 router.post('/', async (req: Request, res: Response) => {
-  const { username, password, name, email, role } = req.body
+  const { username, password, name, email, role, siteId } = req.body
   if (!username || !password || !name) {
     res.status(400).json({ error: '帳號、密碼和姓名為必填' })
     return
@@ -55,10 +64,31 @@ router.post('/', async (req: Request, res: Response) => {
     return
   }
 
+  // 角色驗證
+  const userRole = role || 'site_staff'
+  if (!VALID_ROLES.includes(userRole)) {
+    res.status(400).json({ error: `role 必須是 ${VALID_ROLES.join(' / ')}` })
+    return
+  }
+
+  // super_admin 的 siteId 應為 null，其他角色必須有 siteId
+  if (userRole === 'super_admin' && siteId) {
+    res.status(400).json({ error: '系統管理員不需要綁定站區' })
+    return
+  }
+  if (userRole !== 'super_admin' && !siteId) {
+    res.status(400).json({ error: '非系統管理員須選擇所屬站區' })
+    return
+  }
+
   try {
     const passwordHash = await bcrypt.hash(password, 10)
     const user = await prisma.user.create({
-      data: { username, passwordHash, name, email, role },
+      data: {
+        username, passwordHash, name, email,
+        role: userRole,
+        siteId: userRole === 'super_admin' ? null : siteId,
+      },
       select: userSelect,
     })
     res.status(201).json(user)
@@ -73,11 +103,18 @@ router.post('/', async (req: Request, res: Response) => {
 
 // PATCH /api/users/:id — 更新
 router.patch('/:id', async (req: Request, res: Response) => {
-  const { name, email, role, status, password } = req.body
+  const { name, email, role, siteId, status, password } = req.body
   const data: any = {}
   if (name) data.name = name
   if (email !== undefined) data.email = email
-  if (role) data.role = role
+  if (role) {
+    if (!VALID_ROLES.includes(role)) {
+      res.status(400).json({ error: `role 必須是 ${VALID_ROLES.join(' / ')}` })
+      return
+    }
+    data.role = role
+  }
+  if (siteId !== undefined) data.siteId = siteId || null
   if (status) data.status = status
   if (password) {
     const pwCheck = validatePassword(password)

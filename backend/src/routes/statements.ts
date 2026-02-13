@@ -5,16 +5,23 @@ import { AuthRequest } from '../middleware/auth'
 import { generateMonthlyStatements, generateCustomerStatement, generateTripStatement } from '../services/statement.service'
 import { sendStatementEmail } from '../services/notification.service'
 import { parsePagination, paginationResponse } from '../middleware/pagination'
+import { authorize } from '../middleware/authorize'
+import { siteScope, ScopedRequest } from '../middleware/site-scope'
 
 const router = Router()
 
-// GET /api/statements（支援分頁）
-router.get('/', async (req: Request, res: Response) => {
+// GET /api/statements（支援分頁）— 所有角色可讀+siteScope
+router.get('/', siteScope(), async (req: Request, res: Response) => {
+  const scopedReq = req as ScopedRequest
   const { yearMonth, status, customerId } = req.query
   const where: any = {}
   if (yearMonth) where.yearMonth = yearMonth as string
   if (status) where.status = status as string
   if (customerId) where.customerId = Number(customerId)
+  // 站區範圍過濾：透過 customer.siteId
+  if (scopedReq.scopedSiteId) {
+    where.customer = { siteId: scopedReq.scopedSiteId }
+  }
 
   const { page, pageSize, skip, all } = parsePagination(req)
   const include = { customer: { select: { id: true, name: true } } }
@@ -36,8 +43,8 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(paginationResponse(statements, total, page, pageSize))
 })
 
-// GET /api/statements/:id
-router.get('/:id', async (req: Request, res: Response) => {
+// GET /api/statements/:id — 所有角色可讀
+router.get('/:id', siteScope(), async (req: Request, res: Response) => {
   const statement = await prisma.statement.findUnique({
     where: { id: Number(req.params.id) },
     include: {
@@ -52,8 +59,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(statement)
 })
 
-// POST /api/statements/generate
-router.post('/generate', async (req: Request, res: Response) => {
+// POST /api/statements/generate — 僅 super_admin 和 site_manager
+router.post('/generate', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { yearMonth, customerId } = req.body
 
   if (!yearMonth) {
@@ -94,8 +101,8 @@ router.post('/generate', async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/statements/generate-trip
-router.post('/generate-trip', async (req: Request, res: Response) => {
+// POST /api/statements/generate-trip — 僅 super_admin 和 site_manager
+router.post('/generate-trip', authorize('super_admin', 'site_manager'), siteScope(), async (req: Request, res: Response) => {
   const { tripId } = req.body
   if (!tripId) {
     res.status(400).json({ error: '請提供車趟 ID' })
@@ -110,8 +117,8 @@ router.post('/generate-trip', async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/statements/:id/review
-router.patch('/:id/review', async (req: AuthRequest, res: Response) => {
+// PATCH /api/statements/:id/review — 僅 super_admin 和 site_manager
+router.patch('/:id/review', authorize('super_admin', 'site_manager'), siteScope(), async (req: AuthRequest, res: Response) => {
   const { action } = req.body
   if (!['approve', 'reject'].includes(action)) {
     res.status(400).json({ error: 'action 必須是 approve 或 reject' })
@@ -143,8 +150,8 @@ router.patch('/:id/review', async (req: AuthRequest, res: Response) => {
   res.json(updated)
 })
 
-// PATCH /api/statements/:id/invoice
-router.patch('/:id/invoice', async (_req: Request, res: Response) => {
+// PATCH /api/statements/:id/invoice — 僅 super_admin 和 site_manager
+router.patch('/:id/invoice', authorize('super_admin', 'site_manager'), siteScope(), async (_req: Request, res: Response) => {
   const statement = await prisma.statement.findUnique({
     where: { id: Number(_req.params.id) },
   })
@@ -165,8 +172,8 @@ router.patch('/:id/invoice', async (_req: Request, res: Response) => {
   res.json(updated)
 })
 
-// POST /api/statements/:id/send
-router.post('/:id/send', async (_req: Request, res: Response) => {
+// POST /api/statements/:id/send — 僅 super_admin 和 site_manager
+router.post('/:id/send', authorize('super_admin', 'site_manager'), siteScope(), async (_req: Request, res: Response) => {
   const statement = await prisma.statement.findUnique({
     where: { id: Number(_req.params.id) },
     include: { customer: true },
@@ -232,8 +239,8 @@ router.post('/:id/send', async (_req: Request, res: Response) => {
   }
 })
 
-// POST /api/statements/:id/void
-router.post('/:id/void', async (req: AuthRequest, res: Response) => {
+// POST /api/statements/:id/void — 僅 super_admin 和 site_manager
+router.post('/:id/void', authorize('super_admin', 'site_manager'), siteScope(), async (req: AuthRequest, res: Response) => {
   const { reason } = req.body
   if (!reason) {
     res.status(400).json({ error: '請提供作廢原因' })
